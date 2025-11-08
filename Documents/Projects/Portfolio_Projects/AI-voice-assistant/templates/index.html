@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Voice Assistant - Note Taker</title>
+    <!-- Updated: Search in content + Fixed shortcuts v2.0 -->
     <style>
         .symbol-btn {
             background: #f4f6fa;
@@ -88,6 +89,14 @@
     </div>
             <div class="notebook-container">
                 <div class="sidebar">
+                <div id="microphoneSection" style="margin: 1em 0 0.5em 0;">
+                    <button id="micBtn" title="Voice command (try: 'new note', 'search ...', 'next note', 'previous note', 'start recording', 'stop recording')" style="border-radius:50%;width:2.3em;height:2.3em;font-size:1.3em;background:#f4f6fa;color:#1976d2;border:1px solid #e0e0e0;cursor:pointer;vertical-align:middle;">🎤</button>
+                    <span id="voiceStatus" style="font-size:0.97em;color:#888;margin-left:0.5em;">Initializing...</span>
+                </div>
+                <div style="font-size:0.85em;color:#666;margin-bottom:0.5em;">
+                    <strong>Voice Commands:</strong><br>
+                    "new note", "search [text]", "next note", "previous note", "start recording", "stop recording"
+                </div>
                 <h3>Your Notes</h3>
                 <input id="searchNotes" type="text" placeholder="Search notes..." style="width:95%;margin-bottom:0.7em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
                 <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
@@ -148,26 +157,42 @@ function saveNotes(notes) {
 }
 
 function renderNotesList() {
+    console.log('Rendering notes list');
     let notes = getNotes();
     const searchEl = document.getElementById('searchNotes');
     const dateEl = document.getElementById('dateFilter');
     
-    if (searchEl && searchEl.value) {
-        const search = searchEl.value.toLowerCase();
-        notes = notes.filter(n => (n.title && n.title.toLowerCase().includes(search)) || (n.content && n.content.toLowerCase().includes(search)));
+    // Apply search filter (search in both title and content)
+    if (searchEl && searchEl.value.trim()) {
+        const search = searchEl.value.toLowerCase().trim();
+        console.log('Filtering by search:', search);
+        notes = notes.filter(n => {
+            const titleMatch = n.title && n.title.toLowerCase().includes(search);
+            const contentMatch = n.content && n.content.toLowerCase().includes(search);
+            return titleMatch || contentMatch;
+        });
     }
+    
+    // Apply date filter
     if (dateEl && dateEl.value) {
         const date = dateEl.value;
+        console.log('Filtering by date:', date);
         notes = notes.filter(n => n.timestamp && n.timestamp.includes(date));
     }
     
     const ul = document.getElementById('notesList');
-    if (!ul) return;
+    if (!ul) {
+        console.log('Notes list element not found');
+        return;
+    }
     
     ul.innerHTML = '';
+    console.log('Displaying', notes.length, 'notes');
+    
     notes.forEach((note, idx) => {
         // Find the real index in the full notes array for select/delete
-        const realIdx = getNotes().findIndex(n => n.timestamp === note.timestamp && n.title === note.title);
+        const allNotes = getNotes();
+        const realIdx = allNotes.findIndex(n => n.timestamp === note.timestamp && n.title === note.title);
         const li = document.createElement('li');
         li.className = 'note-list-item' + (realIdx === currentNoteIdx ? ' selected' : '');
         li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') selectNote(realIdx); };
@@ -436,59 +461,78 @@ window.sendAudioToServer = function(audioBlob, append) {
 
 // --- Keyboard Shortcuts ---
 function initKeyboardShortcuts() {
+    console.log('Setting up keyboard shortcuts...');
     document.addEventListener('keydown', function(e) {
-        // Ctrl+N: New note (works anywhere except when typing)
-        if (e.ctrlKey && e.key.toLowerCase() === 'n') {
-            e.preventDefault();
-            createNewNote();
-            return;
-        }
+        // Always prevent browser default for our shortcuts
+        const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
         
-        // Ctrl+F: Focus search (works anywhere)
-        if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+        console.log('Key event:', {
+            key: e.key,
+            ctrlKey: e.ctrlKey,
+            target: e.target.tagName,
+            isInput: isInput
+        });
+        
+        // Ctrl+N: New note
+        if (e.ctrlKey && (e.key === 'n' || e.key === 'N')) {
+            console.log('Ctrl+N pressed - creating new note');
             e.preventDefault();
+            e.stopImmediatePropagation();
+            createNewNote();
+            return false;
+        }
+        // Ctrl+F: Focus search
+        if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+            console.log('Ctrl+F pressed - focusing search');
+            e.preventDefault();
+            e.stopImmediatePropagation();
             const searchBox = document.getElementById('searchNotes');
             if (searchBox) {
                 searchBox.focus();
                 searchBox.select();
             }
-            return;
+            return false;
         }
-        
-        // Ctrl+R: Start/Stop recording (works anywhere except inputs)
-        if (e.ctrlKey && e.key.toLowerCase() === 'r') {
+        // Ctrl+R: Start/Stop recording
+        if (e.ctrlKey && (e.key === 'r' || e.key === 'R')) {
+            console.log('Ctrl+R pressed - toggle recording');
             e.preventDefault();
-            if (!isRecording) {
-                startRecording();
-            } else {
+            e.stopImmediatePropagation();
+            if (isRecording) {
                 stopRecording();
+            } else {
+                startRecording();
             }
+            return false;
+        }
+        // Only handle navigation when not in input fields
+        if (isInput) {
             return;
         }
-        
-        // Only handle navigation shortcuts when not typing in input fields
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            return;
-        }
-        
         // Ctrl+ArrowDown: Next note
         if (e.ctrlKey && e.key === 'ArrowDown') {
+            console.log('Ctrl+Down pressed - next note');
             e.preventDefault();
+            e.stopImmediatePropagation();
             const notes = getNotes();
             if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
                 selectNote(currentNoteIdx + 1);
             }
+            return false;
         }
-        
         // Ctrl+ArrowUp: Previous note
         if (e.ctrlKey && e.key === 'ArrowUp') {
+            console.log('Ctrl+Up pressed - previous note');
             e.preventDefault();
+            e.stopImmediatePropagation();
             const notes = getNotes();
             if (notes.length > 1 && currentNoteIdx > 0) {
                 selectNote(currentNoteIdx - 1);
             }
+            return false;
         }
-    });
+    }, true); // Use capture phase to intercept before browser
+    console.log('Keyboard shortcuts setup complete');
 }
 
 function addShortcutHelp() {
@@ -508,16 +552,42 @@ let voiceRecognition;
 let voiceListening = false;
 
 function setupVoiceCommands() {
+    console.log('Setting up voice commands...');
+    
+    // Check if speech recognition is supported
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        console.log('SpeechRecognition not supported');
+        console.log('SpeechRecognition not supported in this browser');
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Voice commands not supported';
         return false;
     }
     
-    voiceRecognition = new SpeechRecognition();
-    voiceRecognition.lang = 'en-US';
-    voiceRecognition.interimResults = false;
-    voiceRecognition.maxAlternatives = 1;
+    // Check if we're on HTTPS or localhost (required for speech recognition)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        console.log('Speech recognition requires HTTPS or localhost');
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Voice requires HTTPS';
+        return false;
+    }
+    
+    try {
+        voiceRecognition = new SpeechRecognition();
+        voiceRecognition.lang = 'en-US';
+        voiceRecognition.interimResults = false;
+        voiceRecognition.maxAlternatives = 1;
+        voiceRecognition.continuous = false;
+        
+        console.log('Voice recognition initialized successfully');
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Click mic for voice commands';
+        
+    } catch (e) {
+        console.error('Failed to initialize voice recognition:', e);
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Voice setup failed';
+        return false;
+    }
     
     voiceRecognition.onresult = function(event) {
         const transcript = event.results[0][0].transcript.trim().toLowerCase();
@@ -528,16 +598,56 @@ function setupVoiceCommands() {
         updateMicButton();
     };
     
+    voiceRecognition.onstart = function() {
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Listening... (speak now)';
+    };
+    
     voiceRecognition.onend = function() {
+        console.log('Voice recognition ended');
         voiceListening = false;
         updateMicButton();
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl && statusEl.textContent.includes('Listening')) {
+            statusEl.textContent = 'Ready for voice commands';
+        }
     };
     
     voiceRecognition.onerror = function(event) {
+        console.error('Voice recognition error:', event.error, event);
         const statusEl = document.getElementById('voiceStatus');
-        if (statusEl) statusEl.textContent = 'Voice error: ' + event.error;
         voiceListening = false;
         updateMicButton();
+        
+        let errorMsg = 'Voice command failed';
+        switch(event.error) {
+            case 'network':
+                errorMsg = 'Network error - check internet connection';
+                break;
+            case 'not-allowed':
+                errorMsg = 'Microphone permission denied';
+                break;
+            case 'no-speech':
+                errorMsg = 'No speech detected - try again';
+                break;
+            case 'audio-capture':
+                errorMsg = 'Microphone not available';
+                break;
+            case 'service-not-allowed':
+                errorMsg = 'Speech service blocked by browser';
+                break;
+            default:
+                errorMsg = 'Voice error: ' + event.error;
+        }
+        
+        if (statusEl) statusEl.textContent = errorMsg;
+        
+        // Auto-clear error message after 3 seconds
+        setTimeout(() => {
+            if (statusEl && statusEl.textContent === errorMsg) {
+                statusEl.textContent = 'Click mic to try voice commands';
+            }
+        }, 3000);
     };
     
     return true;
@@ -554,11 +664,12 @@ function startVoiceCommand() {
     
     try {
         const statusEl = document.getElementById('voiceStatus');
-        if (statusEl) statusEl.textContent = 'Listening...';
+        if (statusEl) statusEl.textContent = 'Requesting microphone...';
         voiceListening = true;
         updateMicButton();
         voiceRecognition.start();
     } catch (e) {
+        console.error('Voice recognition start error:', e);
         const statusEl = document.getElementById('voiceStatus');
         if (statusEl) statusEl.textContent = 'Microphone access denied';
         voiceListening = false;
@@ -622,36 +733,49 @@ function handleVoiceCommand(cmd) {
     }
 }
 
-function addMicrophoneButton() {
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) {
-        const micDiv = document.createElement('div');
-        micDiv.style.margin = '1em 0 0.5em 0';
-        micDiv.innerHTML = `<button id="micBtn" title="Voice command (try: 'new note', 'search ...', 'next note', 'previous note', 'start recording', 'stop recording')" style="border-radius:50%;width:2.3em;height:2.3em;font-size:1.3em;background:#f4f6fa;color:#1976d2;border:1px solid #e0e0e0;cursor:pointer;vertical-align:middle;"><span style="pointer-events:none;">🎤</span></button> <span id="voiceStatus" style="font-size:0.97em;color:#888;margin-left:0.5em;"></span>`;
-        sidebar.insertBefore(micDiv, sidebar.firstChild.nextSibling);
-        
-        const micBtn = document.getElementById('micBtn');
-        if (micBtn) {
-            micBtn.addEventListener('click', function() {
-                if (!voiceListening) {
-                    startVoiceCommand();
-                } else {
-                    stopVoiceCommand();
-                }
-            });
-        }
+function setupMicrophoneButton() {
+    console.log('Setting up microphone button...');
+    const micBtn = document.getElementById('micBtn');
+    console.log('Mic button element:', micBtn);
+    if (micBtn) {
+        micBtn.addEventListener('click', function(e) {
+            console.log('Mic button clicked!');
+            e.preventDefault();
+            if (!voiceListening) {
+                console.log('Starting voice command...');
+                startVoiceCommand();
+            } else {
+                console.log('Stopping voice command...');
+                stopVoiceCommand();
+            }
+        });
+        console.log('Microphone button setup complete - event listener added');
+    } else {
+        console.error('ERROR: Microphone button not found! Check HTML structure');
     }
 }
 
-// On page load, restore notes and show resume if needed
-window.onload = function() {
-    restoreNote();
-    showResumeIfNeeded();
-    initKeyboardShortcuts();
-    addShortcutHelp();
-    addMicrophoneButton();
-    setupVoiceCommands();
+// Placeholder function (was causing initialization to fail)
+function showResumeIfNeeded() {
+    // This function can be used to restore recording state after page reload
+    console.log('Checking for resume state...');
 }
+
+// On page load, restore notes and show resume if needed
+window.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing...');
+    try {
+        restoreNote();
+        showResumeIfNeeded();
+        initKeyboardShortcuts();
+        addShortcutHelp();
+        setupMicrophoneButton();
+        setupVoiceCommands();
+        console.log('Initialization complete');
+    } catch (e) {
+        console.error('Initialization failed:', e);
+    }
+});
     </script>
 </body>
 </html>
