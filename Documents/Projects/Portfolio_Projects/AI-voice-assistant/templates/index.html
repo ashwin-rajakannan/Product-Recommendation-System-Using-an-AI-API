@@ -5,10 +5,68 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Voice Assistant - Note Taker</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 2em; }
+        .symbol-btn {
+            background: #f4f6fa;
+            color: #1976d2;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 1.1em;
+            margin-right: 0.2em;
+            padding: 0.2em 0.6em;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .symbol-btn:hover {
+            background: #e6f0ff;
+        }
+        body { font-family: Arial, sans-serif; margin: 2em; background: #f8f9fb; }
         .instructions { background: #f0f0f0; padding: 1em; border-radius: 8px; margin-bottom: 1em; }
-        .note-box { margin-top: 2em; }
-        button { padding: 0.5em 1em; font-size: 1em; }
+        .notebook-container { display: flex; gap: 0; align-items: flex-start; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 12px #0001; background: #fff; }
+        .sidebar {
+            min-width: 260px;
+            background: #f4f6fa;
+            border-right: 1px solid #e0e0e0;
+            padding: 1.5em 1em 1em 1.2em;
+            height: 80vh;
+            box-sizing: border-box;
+        }
+        .sidebar h3 { margin-top: 0; font-size: 1.1em; color: #444; letter-spacing: 1px; }
+        .notes-list { list-style: none; padding: 0; margin: 0 0 1em 0; }
+        .note-list-item {
+            background: #fff;
+            border-radius: 6px;
+            margin-bottom: 0.5em;
+            padding: 0.7em 0.8em 0.6em 0.8em;
+            box-shadow: 0 1px 4px #0001;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background 0.15s, box-shadow 0.15s;
+        }
+        .note-list-item.selected {
+            background: #e6f0ff;
+            box-shadow: 0 2px 8px #1976d233;
+        }
+        .note-list-item:hover { background: #f0f6ff; }
+        .note-title { font-weight: 500; color: #1976d2; margin-right: auto; }
+        .note-timestamp { font-size: 0.85em; color: #888; margin-left: 0.5em; }
+        .delete-btn {
+            background: none; border: none; color: #b00; font-size: 1.1em; margin-left: 0.7em; cursor: pointer;
+            padding: 0 0.2em;
+        }
+        .main-area {
+            flex: 1;
+            padding: 2em 2em 2em 2em;
+            background: #fff;
+            min-height: 80vh;
+        }
+        .note-box { margin-top: 1em; }
+        button { padding: 0.5em 1em; font-size: 1em; border-radius: 5px; border: 1px solid #1976d2; background: #1976d2; color: #fff; cursor: pointer; transition: background 0.15s; }
+        button:hover { background: #1256a3; }
+        #resetBtn, #pauseBtn, #continueBtn, #resumeBtn, #stopBtn { background: #fff; color: #1976d2; border: 1px solid #1976d2; }
+        #resetBtn:hover, #pauseBtn:hover, #continueBtn:hover, #resumeBtn:hover, #stopBtn:hover { background: #e6f0ff; }
+        #noteName { font-size: 1.1em; width: 70%; margin-bottom: 0.5em; border: 1px solid #e0e0e0; border-radius: 4px; padding: 0.4em; }
+        #note { width: 100%; border-radius: 6px; border: 1px solid #e0e0e0; padding: 0.7em; font-size: 1.05em; margin-bottom: 0.7em; }
     </style>
 </head>
 <body>
@@ -28,56 +86,194 @@
             </ul>
         </div>
     </div>
-    <button id="startBtn" onclick="startRecording()">Start Recording</button>
-    <button id="pauseBtn" onclick="pauseRecording()" style="display:none;">Pause Recording</button>
-    <button id="continueBtn" onclick="continueRecording()" style="display:none;">Continue Recording</button>
-    <button id="resumeBtn" onclick="resumeAfterReload()" style="display:none;">Continue Recording</button>
-    <button id="stopBtn" onclick="stopRecording()" style="display:none;">Stop Recording</button>
-    <button id="resetBtn" onclick="resetNote()" style="display:none;">Reset</button>
-    <div class="note-box">
-        <h2>Your Note:</h2>
-    <textarea id="note" rows="5" cols="60" oninput="autoSaveNote()"></textarea>
-        <br>
-        <button onclick="saveNote()">Save Note Locally</button>
-        <span id="status"></span>
-    </div>
+            <div class="notebook-container">
+                <div class="sidebar">
+                <h3>Your Notes</h3>
+                <input id="searchNotes" type="text" placeholder="Search notes..." style="width:95%;margin-bottom:0.7em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
+                <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
+                <ul id="notesList" class="notes-list"></ul>
+                <button onclick="createNewNote()" style="width:100%;margin-top:1em;">+ New Note</button>
+                </div>
+                <div class="main-area">
+                    <button id="startBtn" onclick="startRecording()">Start Recording</button>
+                    <button id="pauseBtn" onclick="pauseRecording()" style="display:none;">Pause Recording</button>
+                    <button id="continueBtn" onclick="continueRecording()" style="display:none;">Continue Recording</button>
+                    <button id="resumeBtn" onclick="resumeAfterReload()" style="display:none;">Continue Recording</button>
+                    <button id="stopBtn" onclick="stopRecording()" style="display:none;">Stop Recording</button>
+                    <button id="resetBtn" onclick="resetNote()" style="display:none;">Reset</button>
+                    <div class="note-box">
+                            <h2 id="noteTitle">Your Note:</h2>
+                            <input id="noteName" type="text" placeholder="Note title..." style="display:none;" oninput="autoSaveNote()" />
+                            <textarea id="note" rows="5" cols="60" oninput="autoSaveNote()"></textarea>
+                            <div style="margin: 0.5em 0 0.7em 0;">
+                                <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Quick symbols:</span>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('.')">.</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(',')">,</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(':')">:</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(';')">;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('!')">!</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('?')">?</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('&quot;')">&quot;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('&#39;')">&#39;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('(')">(</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(')')">)</button>
+                            </div>
+                            <button onclick="saveNote()">Save Note Locally</button>
+                            <span id="status"></span>
+                </div>
+                    </div>
+                </div>
+            </div>
     <script>
-function showResumeIfNeeded() {
-    const note = localStorage.getItem('currentNote');
-    if (note && note.length > 0) {
-        document.getElementById('resumeBtn').style.display = 'inline-block';
-        document.getElementById('startBtn').style.display = 'none';
-        document.getElementById('resetBtn').style.display = 'inline-block';
-    } else {
-        document.getElementById('resumeBtn').style.display = 'none';
-        document.getElementById('resetBtn').style.display = 'none';
+// Insert symbol at cursor position in note textarea
+function insertSymbol(symbol) {
+    const textarea = document.getElementById('note');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = textarea.value.substring(0, start);
+    const after = textarea.value.substring(end);
+    textarea.value = before + symbol + after;
+    textarea.selectionStart = textarea.selectionEnd = start + symbol.length;
+    textarea.focus();
+    autoSaveNote();
+}
+// --- Multiple Notes Management ---
+function getNotes() {
+    const notes = localStorage.getItem('notesList');
+    return notes ? JSON.parse(notes) : [];
+}
+
+function saveNotes(notes) {
+    localStorage.setItem('notesList', JSON.stringify(notes));
+}
+
+function renderNotesList() {
+    let notes = getNotes();
+    const searchEl = document.getElementById('searchNotes');
+    const dateEl = document.getElementById('dateFilter');
+    
+    if (searchEl && searchEl.value) {
+        const search = searchEl.value.toLowerCase();
+        notes = notes.filter(n => (n.title && n.title.toLowerCase().includes(search)) || (n.content && n.content.toLowerCase().includes(search)));
     }
+    if (dateEl && dateEl.value) {
+        const date = dateEl.value;
+        notes = notes.filter(n => n.timestamp && n.timestamp.includes(date));
+    }
+    
+    const ul = document.getElementById('notesList');
+    if (!ul) return;
+    
+    ul.innerHTML = '';
+    notes.forEach((note, idx) => {
+        // Find the real index in the full notes array for select/delete
+        const realIdx = getNotes().findIndex(n => n.timestamp === note.timestamp && n.title === note.title);
+        const li = document.createElement('li');
+        li.className = 'note-list-item' + (realIdx === currentNoteIdx ? ' selected' : '');
+        li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') selectNote(realIdx); };
+        li.innerHTML = `<span class='note-title'>${note.title || 'Untitled'}</span><span class='note-timestamp'>${note.timestamp}</span><button class='delete-btn' onclick='event.stopPropagation();deleteNote(${realIdx})' title='Delete note'>🗑️</button>`;
+        ul.appendChild(li);
+    });
+}
+
+function createNewNote() {
+    const notes = getNotes();
+    const now = new Date();
+    const note = {
+        title: 'Untitled',
+        content: '',
+        timestamp: now.toLocaleString()
+    };
+    notes.unshift(note);
+    saveNotes(notes);
+    selectNote(0);
+    renderNotesList();
+}
+
+function selectNote(idx) {
+    const notes = getNotes();
+    if (notes[idx]) {
+        currentNoteIdx = idx;
+        document.getElementById('note').value = notes[idx].content;
+        document.getElementById('noteName').value = notes[idx].title;
+        document.getElementById('noteName').style.display = 'inline-block';
+        document.getElementById('noteTitle').textContent = 'Your Note:';
+        autoSaveNote();
+        renderNotesList();
+    }
+}
+
+function deleteNote(idx) {
+    let notes = getNotes();
+    if (notes.length > 0) {
+        notes.splice(idx, 1);
+        saveNotes(notes);
+        if (currentNoteIdx === idx) {
+            currentNoteIdx = 0;
+        } else if (currentNoteIdx > idx) {
+            currentNoteIdx--;
+        }
+        if (notes.length > 0) {
+            selectNote(currentNoteIdx);
+        } else {
+            document.getElementById('note').value = '';
+            document.getElementById('noteName').value = '';
+            document.getElementById('noteName').style.display = 'none';
+        }
+        renderNotesList();
+    }
+}
+
+let currentNoteIdx = 0;
+
+// --- All app logic in one script block ---
+function autoSaveNote() {
+    // Save current note content and title to notesList
+    const notes = getNotes();
+    if (notes[currentNoteIdx]) {
+        notes[currentNoteIdx].content = document.getElementById('note').value;
+        notes[currentNoteIdx].title = document.getElementById('noteName').value || 'Untitled';
+        notes[currentNoteIdx].timestamp = new Date().toLocaleString();
+        saveNotes(notes);
+        renderNotesList();
+    }
+}
+
+function restoreNote() {
+    // On load, restore notes list and select first note if exists
+    const notes = getNotes();
+    if (notes.length > 0) {
+        currentNoteIdx = 0;
+        document.getElementById('note').value = notes[0].content;
+        document.getElementById('noteName').value = notes[0].title;
+        document.getElementById('noteName').style.display = 'inline-block';
+    } else {
+        document.getElementById('note').value = '';
+        document.getElementById('noteName').value = '';
+        document.getElementById('noteName').style.display = 'none';
+    }
+    renderNotesList();
 }
 
 function resetNote() {
     document.getElementById('note').value = '';
-    localStorage.removeItem('currentNote');
+    document.getElementById('noteName').value = '';
+    document.getElementById('noteName').style.display = 'none';
+    // Remove current note from notesList
+    let notes = getNotes();
+    if (notes.length > 0) {
+        notes.splice(currentNoteIdx, 1);
+        saveNotes(notes);
+        if (notes.length > 0) {
+            currentNoteIdx = 0;
+            selectNote(0);
+        } else {
+            renderNotesList();
+        }
+    }
     document.getElementById('status').textContent = '';
     updateButtons(false, false);
     showResumeIfNeeded();
-}
-
-function resumeAfterReload() {
-    // Start a new recording session, but keep the existing note
-    startRecording(true);
-    document.getElementById('resumeBtn').style.display = 'none';
-}
-// --- All app logic in one script block ---
-function autoSaveNote() {
-    const note = document.getElementById('note').value;
-    localStorage.setItem('currentNote', note);
-}
-
-function restoreNote() {
-    const saved = localStorage.getItem('currentNote');
-    if (saved !== null) {
-        document.getElementById('note').value = saved;
-    }
 }
 
 let mediaRecorder;
@@ -220,6 +416,7 @@ window.sendAudioToServer = function(audioBlob, append) {
             autoSaveNote();
             document.getElementById('status').innerHTML =
                 '<b>Transcription complete.</b> You can also correct the note manually below if you see any error.';
+            renderNotesList();
         } else {
             document.getElementById('status').innerHTML =
                 '<b>Transcription failed. Try again.</b><br>' +
@@ -237,10 +434,223 @@ window.sendAudioToServer = function(audioBlob, append) {
     });
 }
 
-// Restore note on page load and show resume if needed
+// --- Keyboard Shortcuts ---
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+N: New note (works anywhere except when typing)
+        if (e.ctrlKey && e.key.toLowerCase() === 'n') {
+            e.preventDefault();
+            createNewNote();
+            return;
+        }
+        
+        // Ctrl+F: Focus search (works anywhere)
+        if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            const searchBox = document.getElementById('searchNotes');
+            if (searchBox) {
+                searchBox.focus();
+                searchBox.select();
+            }
+            return;
+        }
+        
+        // Ctrl+R: Start/Stop recording (works anywhere except inputs)
+        if (e.ctrlKey && e.key.toLowerCase() === 'r') {
+            e.preventDefault();
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+            return;
+        }
+        
+        // Only handle navigation shortcuts when not typing in input fields
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            return;
+        }
+        
+        // Ctrl+ArrowDown: Next note
+        if (e.ctrlKey && e.key === 'ArrowDown') {
+            e.preventDefault();
+            const notes = getNotes();
+            if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
+                selectNote(currentNoteIdx + 1);
+            }
+        }
+        
+        // Ctrl+ArrowUp: Previous note
+        if (e.ctrlKey && e.key === 'ArrowUp') {
+            e.preventDefault();
+            const notes = getNotes();
+            if (notes.length > 1 && currentNoteIdx > 0) {
+                selectNote(currentNoteIdx - 1);
+            }
+        }
+    });
+}
+
+function addShortcutHelp() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.title =
+            'Shortcuts:\n' +
+            'Ctrl+N: New note\n' +
+            'Ctrl+F: Search notes\n' +
+            'Ctrl+↑/↓: Prev/Next note\n' +
+            'Ctrl+R: Start/Stop recording';
+    }
+}
+
+// --- Voice Command Support ---
+let voiceRecognition;
+let voiceListening = false;
+
+function setupVoiceCommands() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        console.log('SpeechRecognition not supported');
+        return false;
+    }
+    
+    voiceRecognition = new SpeechRecognition();
+    voiceRecognition.lang = 'en-US';
+    voiceRecognition.interimResults = false;
+    voiceRecognition.maxAlternatives = 1;
+    
+    voiceRecognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript.trim().toLowerCase();
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Heard: ' + transcript;
+        handleVoiceCommand(transcript);
+        voiceListening = false;
+        updateMicButton();
+    };
+    
+    voiceRecognition.onend = function() {
+        voiceListening = false;
+        updateMicButton();
+    };
+    
+    voiceRecognition.onerror = function(event) {
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Voice error: ' + event.error;
+        voiceListening = false;
+        updateMicButton();
+    };
+    
+    return true;
+}
+
+function startVoiceCommand() {
+    if (!voiceRecognition) {
+        if (!setupVoiceCommands()) {
+            const statusEl = document.getElementById('voiceStatus');
+            if (statusEl) statusEl.textContent = 'Voice commands not supported';
+            return;
+        }
+    }
+    
+    try {
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Listening...';
+        voiceListening = true;
+        updateMicButton();
+        voiceRecognition.start();
+    } catch (e) {
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Microphone access denied';
+        voiceListening = false;
+        updateMicButton();
+    }
+}
+
+function stopVoiceCommand() {
+    if (voiceRecognition && voiceListening) {
+        voiceRecognition.stop();
+        voiceListening = false;
+        updateMicButton();
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Stopped listening';
+    }
+}
+
+function updateMicButton() {
+    const micBtn = document.getElementById('micBtn');
+    if (micBtn) {
+        micBtn.style.background = voiceListening ? '#1976d2' : '#f4f6fa';
+        micBtn.style.color = voiceListening ? '#fff' : '#1976d2';
+    }
+}
+
+function handleVoiceCommand(cmd) {
+    const statusEl = document.getElementById('voiceStatus');
+    
+    if (cmd.includes('new note')) {
+        createNewNote();
+        if (statusEl) statusEl.textContent = 'Created new note';
+    } else if (cmd.startsWith('search ')) {
+        const q = cmd.replace('search ', '');
+        document.getElementById('searchNotes').value = q;
+        renderNotesList();
+        if (statusEl) statusEl.textContent = 'Searching for: ' + q;
+    } else if (cmd.includes('next note')) {
+        const notes = getNotes();
+        if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
+            selectNote(currentNoteIdx + 1);
+            if (statusEl) statusEl.textContent = 'Next note selected';
+        }
+    } else if (cmd.includes('previous note')) {
+        const notes = getNotes();
+        if (notes.length > 1 && currentNoteIdx > 0) {
+            selectNote(currentNoteIdx - 1);
+            if (statusEl) statusEl.textContent = 'Previous note selected';
+        }
+    } else if (cmd.includes('start recording')) {
+        if (!isRecording) {
+            startRecording();
+            if (statusEl) statusEl.textContent = 'Recording started';
+        }
+    } else if (cmd.includes('stop recording')) {
+        if (isRecording) {
+            stopRecording();
+            if (statusEl) statusEl.textContent = 'Recording stopped';
+        }
+    } else {
+        if (statusEl) statusEl.textContent = 'Unknown command: ' + cmd;
+    }
+}
+
+function addMicrophoneButton() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        const micDiv = document.createElement('div');
+        micDiv.style.margin = '1em 0 0.5em 0';
+        micDiv.innerHTML = `<button id="micBtn" title="Voice command (try: 'new note', 'search ...', 'next note', 'previous note', 'start recording', 'stop recording')" style="border-radius:50%;width:2.3em;height:2.3em;font-size:1.3em;background:#f4f6fa;color:#1976d2;border:1px solid #e0e0e0;cursor:pointer;vertical-align:middle;"><span style="pointer-events:none;">🎤</span></button> <span id="voiceStatus" style="font-size:0.97em;color:#888;margin-left:0.5em;"></span>`;
+        sidebar.insertBefore(micDiv, sidebar.firstChild.nextSibling);
+        
+        const micBtn = document.getElementById('micBtn');
+        if (micBtn) {
+            micBtn.addEventListener('click', function() {
+                if (!voiceListening) {
+                    startVoiceCommand();
+                } else {
+                    stopVoiceCommand();
+                }
+            });
+        }
+    }
+}
+
+// On page load, restore notes and show resume if needed
 window.onload = function() {
     restoreNote();
     showResumeIfNeeded();
+    initKeyboardShortcuts();
+    addShortcutHelp();
+    addMicrophoneButton();
+    setupVoiceCommands();
 }
     </script>
 </body>
