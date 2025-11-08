@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Assistant - Note Taker</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        .instructions { background: #f0f0f0; padding: 1em; border-radius: 8px; margin-bottom: 1em; }
+        .note-box { margin-top: 2em; }
+        button { padding: 0.5em 1em; font-size: 1em; }
+    </style>
+</head>
+<body>
+    <h1>AI Voice Assistant - Note Taker</h1>
+    <div class="instructions">
+        <p><b>Welcome!</b> This is a <b>demo and prototype AI Note Taker</b>. It may make mistakes sometimes.<br>
+        To take a note, say <b>"Start Note"</b> or click the button below.<br>
+        The assistant will listen and convert your speech to text.<br>
+        When you're done, your note will appear below and can be saved locally.</p>
+        <div style="margin-top:0.5em;">
+            <b>Tips for best results:</b>
+            <ul style="margin:0 0 0 1em;padding:0;">
+                <li>Wear earphones and keep the mic close to your mouth.</li>
+                <li>Speak clearly and avoid background noise.</li>
+                <li>Record at least 2-3 seconds of audio.</li>
+                <li>Check your microphone permissions.</li>
+            </ul>
+        </div>
+    </div>
+    <button id="startBtn" onclick="startRecording()">Start Recording</button>
+    <button id="pauseBtn" onclick="pauseRecording()" style="display:none;">Pause Recording</button>
+    <button id="continueBtn" onclick="continueRecording()" style="display:none;">Continue Recording</button>
+    <button id="resumeBtn" onclick="resumeAfterReload()" style="display:none;">Continue Recording</button>
+    <button id="stopBtn" onclick="stopRecording()" style="display:none;">Stop Recording</button>
+    <button id="resetBtn" onclick="resetNote()" style="display:none;">Reset</button>
+    <div class="note-box">
+        <h2>Your Note:</h2>
+    <textarea id="note" rows="5" cols="60" oninput="autoSaveNote()"></textarea>
+        <br>
+        <button onclick="saveNote()">Save Note Locally</button>
+        <span id="status"></span>
+    </div>
+    <script>
+function showResumeIfNeeded() {
+    const note = localStorage.getItem('currentNote');
+    if (note && note.length > 0) {
+        document.getElementById('resumeBtn').style.display = 'inline-block';
+        document.getElementById('startBtn').style.display = 'none';
+        document.getElementById('resetBtn').style.display = 'inline-block';
+    } else {
+        document.getElementById('resumeBtn').style.display = 'none';
+        document.getElementById('resetBtn').style.display = 'none';
+    }
+}
+
+function resetNote() {
+    document.getElementById('note').value = '';
+    localStorage.removeItem('currentNote');
+    document.getElementById('status').textContent = '';
+    updateButtons(false, false);
+    showResumeIfNeeded();
+}
+
+function resumeAfterReload() {
+    // Start a new recording session, but keep the existing note
+    startRecording(true);
+    document.getElementById('resumeBtn').style.display = 'none';
+}
+// --- All app logic in one script block ---
+function autoSaveNote() {
+    const note = document.getElementById('note').value;
+    localStorage.setItem('currentNote', note);
+}
+
+function restoreNote() {
+    const saved = localStorage.getItem('currentNote');
+    if (saved !== null) {
+        document.getElementById('note').value = saved;
+    }
+}
+
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+let isPaused = false;
+let stream;
+
+function saveNote() {
+    var note = document.getElementById('note').value;
+    if (!note) {
+        document.getElementById('status').textContent = 'No note to save.';
+        return;
+    }
+    // Download note as a .txt file locally
+    var blob = new Blob([note], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'note.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    document.getElementById('status').textContent = 'Note downloaded!';
+}
+
+function updateButtons(recording, paused) {
+    document.getElementById('startBtn').style.display = (!recording && !paused) ? 'inline-block' : 'none';
+    document.getElementById('pauseBtn').style.display = (recording && !paused) ? 'inline-block' : 'none';
+    document.getElementById('continueBtn').style.display = paused ? 'inline-block' : 'none';
+    document.getElementById('stopBtn').style.display = (recording || paused) ? 'inline-block' : 'none';
+}
+
+function startRecording(append) {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(audioStream => {
+            stream = audioStream;
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                sendAudioToServer(audioBlob, append);
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                isRecording = false;
+                isPaused = false;
+                updateButtons(false, false);
+                showResumeIfNeeded();
+            };
+            mediaRecorder.start(1000);
+            isRecording = true;
+            isPaused = false;
+            updateButtons(true, false);
+            document.getElementById('status').textContent = 'Recording...';
+        })
+        .catch(err => {
+            document.getElementById('status').textContent = 'Error accessing microphone: ' + err.message;
+        });
+}
+
+function pauseRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.pause();
+        isPaused = true;
+        isRecording = false;
+        updateButtons(false, true);
+        document.getElementById('status').textContent = 'Recording paused. Transcribing current audio...';
+        // Transcribe current audio chunks for preview
+        if (audioChunks.length > 0) {
+            const currentBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            transcribePreview(currentBlob);
+        } else {
+            document.getElementById('status').textContent = 'Recording paused. No audio to transcribe yet. Click Continue to resume.';
+        }
+    }
+}
+
+function transcribePreview(audioBlob) {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'preview.wav');
+    fetch('/transcribe', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.text) {
+            // Append preview transcription to existing note for preview only
+            document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
+            autoSaveNote();
+            document.getElementById('status').innerHTML = 
+                '<b>Recording paused.</b> Preview transcription appended above. Click Continue to add more or Stop to finish.';
+        } else {
+            document.getElementById('status').innerHTML = 
+                '<b>Recording paused.</b> Could not transcribe current audio. Click Continue to add more or Stop to finish.';
+        }
+    })
+    .catch(err => {
+        document.getElementById('status').textContent = 'Recording paused. Transcription preview failed. Click Continue to resume.';
+    });
+}
+
+function continueRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'paused') {
+        mediaRecorder.resume();
+        isRecording = true;
+        isPaused = false;
+        updateButtons(true, false);
+        document.getElementById('status').textContent = 'Recording resumed...';
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused')) {
+        mediaRecorder.stop();
+        document.getElementById('status').textContent = 'Processing...';
+    }
+}
+
+// Patch recorder.js's sendAudioToServer to show backend error details and user guidance
+window.sendAudioToServer = function(audioBlob, append) {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'note.wav');
+    fetch('/transcribe', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.text) {
+            // Always append new transcription to the note
+            document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
+            autoSaveNote();
+            document.getElementById('status').innerHTML =
+                '<b>Transcription complete.</b> You can also correct the note manually below if you see any error.';
+        } else {
+            document.getElementById('status').innerHTML =
+                '<b>Transcription failed. Try again.</b><br>' +
+                'You can also correct the note manually below.<br>' +
+                'Tips: <ul style="margin:0 0 0 1em;padding:0;">' +
+                '<li>Wear earphones and keep the mic close to your mouth.</li>' +
+                '<li>Speak clearly and avoid background noise.</li>' +
+                '<li>Record at least 2-3 seconds of audio.</li>' +
+                '<li>Check your microphone permissions.</li>' +
+                '</ul>';
+        }
+    })
+    .catch(err => {
+        document.getElementById('status').textContent = 'Transcription error: ' + err;
+    });
+}
+
+// Restore note on page load and show resume if needed
+window.onload = function() {
+    restoreNote();
+    showResumeIfNeeded();
+}
+    </script>
+</body>
+</html>
