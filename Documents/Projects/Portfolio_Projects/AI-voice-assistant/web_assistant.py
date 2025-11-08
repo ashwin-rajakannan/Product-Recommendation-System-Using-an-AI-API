@@ -27,11 +27,12 @@ def transcribe():
     # Convert to wav if not already
     wav_path = temp_path
     conversion_error = None
-    # Always treat as webm/ogg and convert to wav
+    # Auto-detect format and convert to wav
     wav_path = temp_path + '.wav'
     try:
-        print(f"[DEBUG] Attempting to convert {temp_path} to WAV using pydub...")
-        audio = AudioSegment.from_file(temp_path, format='webm')
+        print(f"[DEBUG] Attempting to convert {temp_path} to WAV (auto-detecting format)...")
+        # Let pydub/ffmpeg auto-detect the format instead of hardcoding 'webm'
+        audio = AudioSegment.from_file(temp_path)
         audio.export(wav_path, format='wav')
         print(f"[DEBUG] Converted {filename} to WAV: {wav_path}")
     except Exception as e:
