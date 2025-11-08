@@ -68,16 +68,26 @@
         #resetBtn:hover, #pauseBtn:hover, #continueBtn:hover, #resumeBtn:hover, #stopBtn:hover { background: #e6f0ff; }
         #noteName { font-size: 1.1em; width: 70%; margin-bottom: 0.5em; border: 1px solid #e0e0e0; border-radius: 4px; padding: 0.4em; }
         #note { width: 100%; border-radius: 6px; border: 1px solid #e0e0e0; padding: 0.7em; font-size: 1.05em; margin-bottom: 0.7em; }
-        .voice-search-match { background: #ffeaea !important; border-left: 4px solid #e53935 !important; }
+        #searchMode { cursor: pointer; color: #444; transition: border-color 0.15s; }
+        #searchMode:hover { border-color: #1976d2; }
+        #searchMode:focus { outline: none; border-color: #1976d2; box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2); }
+        .voice-search-match { 
+            background: linear-gradient(135deg, #ffebee, #ffcdd2) !important; 
+            border: 2px solid #e53935 !important; 
+            box-shadow: 0 2px 8px rgba(229, 57, 53, 0.3) !important;
+            transform: scale(1.02) !important;
+            transition: all 0.2s ease !important;
+        }
     </style>
 </head>
 <body>
     <h1>AI Voice Assistant - Note Taker</h1>
     <div class="instructions">
-        <p><b>Welcome!</b> This is a <b>demo and prototype AI Note Taker</b>. It may make mistakes sometimes.<br>
-        To take a note, say <b>"Start Note"</b> or click the button below.<br>
-        The assistant will listen and convert your speech to text.<br>
-        When you're done, your note will appear below and can be saved locally.</p>
+    <p><b>Welcome!</b> This is a <b>demo and prototype AI Note Taker</b>. It may make mistakes sometimes.<br>
+    To take a note, say <b>"Start Note"</b> or click the button below.<br>
+    The assistant will listen and convert your speech to text.<br>
+    When you're done, your note will appear below and can be saved locally.</p>
+    <div style="margin:0.7em 0 1em 0;"><b style="color:#1976d2;">ℹ️ Works perfectly on Chrome browser. For best experience, use Chrome.</b></div>
         <div style="margin-top:0.5em;">
             <b>Tips for best results:</b>
             <ul style="margin:0 0 0 1em;padding:0;">
@@ -104,14 +114,20 @@
             </div>
             <div style="font-size:0.85em;color:#666;margin-bottom:0.5em;">
                 <strong>Voice Commands:</strong><br>
-                "new note", "search [text]", "next note", "previous note", "start recording", "stop recording"
+                   "new note", "search [title]", "clear search", "show all notes", "next note", "previous note", "start recording", "stop recording", "start live", "stop live"
             </div>
             <div id="browserCompatibility" style="font-size:0.8em;color:#888;margin-bottom:1em;padding:0.5em;background:#f9f9f9;border-radius:4px;display:none;">
                 <strong>Browser Status:</strong><br>
                 <span id="compatStatus"></span>
             </div>
             <h3>Your Notes</h3>
-            <input id="searchNotes" type="text" placeholder="Search notes..." style="width:95%;margin-bottom:0.7em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
+            <div style="display:flex;gap:0.5em;margin-bottom:0.7em;">
+                <input id="searchNotes" type="text" placeholder="Search notes..." style="flex:1;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
+                <select id="searchMode" style="padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:0.9em;background:#fff;" onchange="renderNotesList()">
+                    <option value="title">Title Only</option>
+                    <option value="content">Full Content</option>
+                </select>
+            </div>
             <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
             <ul id="notesList" class="notes-list"></ul>
             <button onclick="createNewNote()" style="width:100%;margin-top:1em;">+ New Note</button>
@@ -178,7 +194,17 @@ function insertSymbol(symbol) {
 // Notes management functions
 function getNotes() {
     const notes = localStorage.getItem('notesList');
-    return notes ? JSON.parse(notes) : [];
+    let parsed = notes ? JSON.parse(notes) : [];
+    // Always ensure at least one untitled note exists
+    if (!parsed.length) {
+        parsed = [{
+            title: 'Untitled',
+            content: '',
+            timestamp: new Date().toLocaleString()
+        }];
+        localStorage.setItem('notesList', JSON.stringify(parsed));
+    }
+    return parsed;
 }
 
 function saveNotes(notes) {
@@ -195,10 +221,18 @@ function renderNotesList() {
     let search = '';
     if (searchEl && searchEl.value.trim()) {
         search = searchEl.value.toLowerCase().trim();
+        const searchMode = document.getElementById('searchMode').value;
+        
         notes = notes.filter(n => {
-            const titleMatch = n.title && n.title.toLowerCase().includes(search);
-            const contentMatch = n.content && n.content.toLowerCase().includes(search);
-            return titleMatch || contentMatch;
+            if (searchMode === 'title') {
+                // Search in title only
+                return n.title && n.title.toLowerCase().includes(search);
+            } else {
+                // Search in both title and content
+                const titleMatch = n.title && n.title.toLowerCase().includes(search);
+                const contentMatch = n.content && n.content.toLowerCase().includes(search);
+                return titleMatch || contentMatch;
+            }
         });
     }
 
@@ -214,10 +248,10 @@ function renderNotesList() {
     let voiceSearch = voiceSearchTerm && voiceSearchTerm.trim() !== '';
     if (voiceSearch && !search) {
         displayNotes = allNotes;
-        const term = voiceSearchTerm.toLowerCase();
+        const term = voiceSearchTerm.toLowerCase().trim();
         displayNotes = [...displayNotes].sort((a, b) => {
-            const aMatch = (a.title && a.title.toLowerCase().includes(term)) || (a.content && a.content.toLowerCase().includes(term));
-            const bMatch = (b.title && b.title.toLowerCase().includes(term)) || (b.content && b.content.toLowerCase().includes(term));
+            const aMatch = a.title && a.title.toLowerCase() === term;
+            const bMatch = b.title && b.title.toLowerCase() === term;
             if (aMatch === bMatch) return 0;
             return aMatch ? -1 : 1;
         });
@@ -232,8 +266,8 @@ function renderNotesList() {
         const li = document.createElement('li');
         let match = false;
         if (voiceSearch && !search) {
-            const term = voiceSearchTerm.toLowerCase();
-            match = (note.title && note.title.toLowerCase().includes(term)) || (note.content && note.content.toLowerCase().includes(term));
+            const term = voiceSearchTerm.toLowerCase().trim();
+            match = note.title && note.title.toLowerCase() === term;
         }
         li.className = 'note-list-item' + (realIdx === currentNoteIdx ? ' selected' : '') + (match ? ' voice-search-match' : '');
         li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') selectNote(realIdx); };
@@ -243,7 +277,16 @@ function renderNotesList() {
 }
 
 function createNewNote() {
-    const notes = getNotes();
+    // Save current note if it has content before creating new
+    const noteArea = document.getElementById('note');
+    const noteName = document.getElementById('noteName');
+    let notes = getNotes();
+    if (notes.length && (noteArea.value.trim() || noteName.value.trim())) {
+        notes[0].content = noteArea.value;
+        notes[0].title = noteName.value || 'Untitled';
+        notes[0].timestamp = new Date().toLocaleString();
+        saveNotes(notes);
+    }
     const now = new Date();
     const note = {
         title: 'Untitled',
@@ -728,10 +771,22 @@ function handleVoiceCommand(cmd) {
         if (statusEl) statusEl.textContent = 'Created new note';
     } else if (cmd.startsWith('search ')) {
         const q = cmd.replace('search ', '').trim();
-        document.getElementById('searchNotes').value = q;
+        // Clear manual search input to avoid conflicts
+        const searchInput = document.getElementById('searchNotes');
+        searchInput.value = '';
+        searchInput.placeholder = '🎤 Voice search active: "' + q + '" (say "clear search" to reset)';
+        searchInput.style.background = '#e8f5e8';
         voiceSearchTerm = q;
         renderNotesList();
-        if (statusEl) statusEl.textContent = 'Searching for: ' + q;
+        if (statusEl) statusEl.textContent = 'Voice searching for: ' + q;
+    } else if (cmd.includes('clear search') || cmd.includes('show all notes')) {
+        const searchInput = document.getElementById('searchNotes');
+        searchInput.value = '';
+        searchInput.placeholder = 'Search notes...';
+        searchInput.style.background = '';
+        voiceSearchTerm = '';
+        renderNotesList();
+        if (statusEl) statusEl.textContent = 'Showing all notes';
     } else if (cmd.includes('next note')) {
         const notes = getNotes();
         if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
@@ -743,6 +798,22 @@ function handleVoiceCommand(cmd) {
         if (notes.length > 1 && currentNoteIdx > 0) {
             selectNote(currentNoteIdx - 1);
             if (statusEl) statusEl.textContent = 'Previous note selected';
+        }
+    } else if (cmd.includes('start live')) {
+        const liveBtn = document.getElementById('liveTranscribeBtn');
+        if (liveBtn && liveBtn.textContent.includes('Live Transcribe')) {
+            liveBtn.click();
+            if (statusEl) statusEl.textContent = 'Live transcribe started';
+        } else if (statusEl) {
+            statusEl.textContent = 'Live transcribe already running';
+        }
+    } else if (cmd.includes('stop live')) {
+        const liveBtn = document.getElementById('liveTranscribeBtn');
+        if (liveBtn && liveBtn.textContent.includes('Stop Live')) {
+            liveBtn.click();
+            if (statusEl) statusEl.textContent = 'Live transcribe stopped';
+        } else if (statusEl) {
+            statusEl.textContent = 'Live transcribe not running';
         }
     } else if (cmd.includes('start recording')) {
         if (!isRecording) {
@@ -809,13 +880,14 @@ function checkBrowserCompatibility() {
         features.push('✅ Voice commands available');
     }
     
+    const chromeMsg = '<br><b>ℹ️ Works perfectly on Chrome browser. For best experience, use Chrome.</b>';
     if (issues.length > 0) {
-        statusSpan.innerHTML = features.join('<br>') + (features.length > 0 ? '<br>' : '') + issues.join('<br>');
+        statusSpan.innerHTML = features.join('<br>') + (features.length > 0 ? '<br>' : '') + issues.join('<br>') + chromeMsg;
         compatDiv.style.display = 'block';
         compatDiv.style.background = '#fff3cd';
         compatDiv.style.borderLeft = '3px solid #ffc107';
     } else {
-        statusSpan.innerHTML = features.join('<br>');
+        statusSpan.innerHTML = features.join('<br>') + chromeMsg;
         compatDiv.style.display = 'block';
         compatDiv.style.background = '#d4edda';
         compatDiv.style.borderLeft = '3px solid #28a745';
@@ -953,14 +1025,33 @@ window.addEventListener('DOMContentLoaded', function() {
         
         // Setup search event listener
         const searchNotesEl = document.getElementById('searchNotes');
+        const searchModeEl = document.getElementById('searchMode');
+        
+        function updateSearchPlaceholder() {
+            if (searchNotesEl && searchModeEl) {
+                const mode = searchModeEl.value;
+                searchNotesEl.placeholder = mode === 'title' ? 'Search note titles...' : 'Search all content...';
+            }
+        }
+        
         if (searchNotesEl) {
             searchNotesEl.addEventListener('input', function() {
-                if (!this.value.trim()) {
-                    voiceSearchTerm = '';
-                    renderNotesList();
-                }
+                // Reset voice search styling when user types manually
+                this.style.background = '';
+                voiceSearchTerm = '';
+                renderNotesList();
             });
         }
+        
+        if (searchModeEl) {
+            searchModeEl.addEventListener('change', function() {
+                updateSearchPlaceholder();
+                renderNotesList();
+            });
+        }
+        
+        // Set initial placeholder
+        updateSearchPlaceholder();
         
         console.log('Initialization complete');
     } catch (e) {
