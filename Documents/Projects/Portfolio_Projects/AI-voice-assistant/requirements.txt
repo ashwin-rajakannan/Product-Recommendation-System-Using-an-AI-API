@@ -1,2 +1,11 @@
 SpeechRecognition
 pyttsx3
+Flask
+gtts
+playsound
+pydub
+vosk
+requests
+werkzeug
+eventlet
+flask-socketio
