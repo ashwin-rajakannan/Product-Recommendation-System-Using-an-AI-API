@@ -91,6 +91,10 @@
         To take a note, say <b>"Start Note"</b> or click the button below.<br>
         The assistant will listen and convert your speech to text.<br>
         When you're done, your note will appear below and can be saved locally.</p>
+        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:0.7em 1em 0.7em 1.2em;margin-bottom:0.7em;font-size:1.04em;color:#856404;">
+            <b>Suggestion:</b> For the best experience and full functionality, <b>use Google Chrome</b>.<br>
+            Some features may not work in other browsers.
+        </div>
         <div style="margin-top:0.5em;">
             <b>Tips for best results:</b>
             <ul style="margin:0 0 0 1em;padding:0;">
@@ -117,7 +121,7 @@
                 </div>
                 <div style="font-size:0.85em;color:#666;margin-bottom:0.5em;">
                     <strong>Voice Commands:</strong><br>
-                    "new note", "search [text]", "next note", "previous note", "start recording", "stop recording"
+                    "new note", "search [title]", "next note", "previous note", "start recording", "stop recording", "start live", "stop live"
                 </div>
                 <div id="browserCompatibility" style="font-size:0.8em;color:#888;margin-bottom:1em;padding:0.5em;background:#f9f9f9;border-radius:4px;display:none;">
                     <strong>Browser Status:</strong><br>
@@ -1100,6 +1104,18 @@ function handleVoiceCommand(cmd) {
             stopRecording();
             if (statusEl) statusEl.textContent = 'Recording stopped';
         }
+    } else if (cmd.includes('start live')) {
+        // Start live transcribe if not already running
+        if (!noteLiveListening) {
+            startLiveTranscribe();
+            if (statusEl) statusEl.textContent = 'Live transcribe started';
+        }
+    } else if (cmd.includes('stop live')) {
+        // Stop live transcribe if running
+        if (noteLiveListening) {
+            stopLiveTranscribe();
+            if (statusEl) statusEl.textContent = 'Live transcribe stopped';
+        }
     } else {
         if (statusEl) statusEl.textContent = 'Unknown command: ' + cmd;
     }
@@ -1175,14 +1191,15 @@ function checkBrowserCompatibility() {
     }
     
     // Always show the compatibility info
+    let chromeSuggestion = '<div style="margin-top:0.5em;font-size:0.98em;color:#856404;"><b>Suggestion:</b> For full functionality, use Google Chrome.</div>';
     if (issues.length > 0) {
-        statusSpan.innerHTML = features.join('<br>') + (features.length > 0 ? '<br>' : '') + issues.join('<br>');
+        statusSpan.innerHTML = features.join('<br>') + (features.length > 0 ? '<br>' : '') + issues.join('<br>') + chromeSuggestion;
         compatDiv.style.display = 'block';
         compatDiv.style.background = '#fff3cd';
         compatDiv.style.borderLeft = '3px solid #ffc107';
         compatDiv.style.padding = '0.7em';
     } else {
-        statusSpan.innerHTML = features.join('<br>');
+        statusSpan.innerHTML = features.join('<br>') + chromeSuggestion;
         compatDiv.style.display = 'block';
         compatDiv.style.background = '#d4edda';
         compatDiv.style.borderLeft = '3px solid #28a745';
@@ -1317,11 +1334,15 @@ function startLiveTranscribe() {
     noteLiveRecognition.onresult = function(event) {
         console.log('Speech result received:', event.results.length, 'results');
         let interimTranscript = '';
-        
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             const transcript = event.results[i][0].transcript;
             console.log('Result', i, '- Final:', event.results[i].isFinal, 'Text:', transcript);
-            
+            // Listen for 'stop live' command in transcript
+            if (transcript.toLowerCase().includes('stop live')) {
+                stopLiveTranscribe();
+                if (status) status.textContent = 'Live transcribe stopped (by voice)';
+                return;
+            }
             if (event.results[i].isFinal) {
                 // Add to note area using Quill-compatible function
                 const trimmedTranscript = transcript.trim();
@@ -1335,7 +1356,6 @@ function startLiveTranscribe() {
                 interimTranscript += transcript;
             }
         }
-        
         // Show interim results in status
         if (interimTranscript) {
             status.textContent = 'Hearing: ' + interimTranscript;
