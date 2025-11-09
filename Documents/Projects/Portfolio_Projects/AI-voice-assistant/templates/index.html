@@ -85,36 +85,132 @@
     </style>
 </head>
 <body>
-    <h1>AI Voice Assistant - Note Taker</h1>
-    <div class="instructions">
-        <p><b>Welcome!</b> This is a <b>demo and prototype AI Note Taker</b>. It may make mistakes sometimes.<br>
-        To take a note, say <b>"Start Note"</b> or click the button below.<br>
-        The assistant will listen and convert your speech to text.<br>
-        When you're done, your note will appear below and can be saved locally.</p>
-        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:0.7em 1em 0.7em 1.2em;margin-bottom:0.7em;font-size:1.04em;color:#856404;">
-            <b>Suggestion:</b> For the best experience and full functionality, <b>use Google Chrome</b>.<br>
-            Some features may not work in other browsers.
-        </div>
-        <div style="margin-top:0.5em;">
-            <b>Tips for best results:</b>
-            <ul style="margin:0 0 0 1em;padding:0;">
-                <li>Wear earphones and keep the mic close to your mouth.</li>
-                <li>Speak clearly and avoid background noise.</li>
-                <li>Record at least 2-3 seconds of audio.</li>
-                <li>Check your microphone permissions.</li>
-            </ul>
-            <b>Keyboard Shortcuts:</b>
-            <ul style="margin:0 0 0 1em;padding:0;">
-                <li><b>Ctrl+Alt+N</b>: New note</li>
-                <li><b>Ctrl+F</b>: Search notes</li>
-                <li><b>Ctrl+↑/↓</b>: Previous/Next note</li>
-                <li><b>Ctrl+R</b>: Start/Stop recording</li>
-                <li><b>Ctrl+Alt+T</b>: Start/Stop Live Transcribe</li>
-            </ul>
-        </div>
-    </div>
-            <div class="notebook-container">
-                <div class="sidebar">
+    <div class="main-container" style="display:flex;flex-direction:column;height:98vh;max-width:100vw;">
+        <!-- Top bar (optional, can add global actions here) -->
+        <div style="height:3.2em;"></div>
+        <div style="flex:1;display:flex;min-height:0;">
+            <!-- Sidebar: Notebooks, Tags, Trash -->
+            <div class="sidebar" style="width:220px;min-width:180px;max-width:260px;background:#f4f6fa;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;overflow-y:auto;">
+                <div style="padding:1.2em 1em 0.5em 1.2em;">
+                    <h2 style="font-size:1.1em;margin:0 0 1.2em 0;letter-spacing:1px;color:#444;">NOTEBOOKS</h2>
+                    <div style="margin-bottom:1.2em;cursor:pointer;padding:0.3em 0;" onclick="showAllNotes()">
+                        <b id="allNotesBtn">All notes</b>
+                    </div>
+                    <div style="margin-bottom:1.2em;cursor:pointer;padding:0.3em 0;" onclick="showTrash()">
+                        <b id="trashBtn">Trash</b> <span id="trashCount" style="color:#888;font-size:0.9em;"></span>
+                    </div>
+                    <div style="margin-bottom:1.2em;">
+                        <b>Tags</b> <span style="color:#bbb;font-size:0.9em;">(coming soon)</span>
+                    </div>
+                    
+                    <!-- Welcome & Tips Section -->
+                    <div style="margin-top:2em;padding-top:1em;border-top:1px solid #e0e0e0;">
+                        <h3 style="font-size:0.95em;margin:0 0 0.8em 0;color:#666;">WELCOME</h3>
+                        <div style="font-size:0.8em;color:#666;line-height:1.4;">
+                            <p style="margin:0 0 0.8em 0;"><b>AI Voice Notes Workspace</b> - Demo prototype for voice note-taking.</p>
+                            
+                            <div style="background:#fff3cd;border-left:3px solid #ffc107;padding:0.5em;margin-bottom:0.8em;font-size:0.85em;color:#856404;">
+                                <b>Suggestion:</b> Use <b>Google Chrome</b> for best experience.
+                            </div>
+                            
+                            <div style="margin-bottom:1em;">
+                                <b style="color:#555;">Tips for best results:</b>
+                                <ul style="margin:0.3em 0 0 1em;padding:0;font-size:0.75em;">
+                                    <li>Wear earphones, keep mic close</li>
+                                    <li>Speak clearly, avoid background noise</li>
+                                    <li>Record at least 2-3 seconds</li>
+                                    <li>Check microphone permissions</li>
+                                </ul>
+                            </div>
+                            
+                            <div style="margin-bottom:1em;">
+                                <b style="color:#555;">Shortcuts:</b>
+                                <ul style="margin:0.3em 0 0 1em;padding:0;font-size:0.75em;">
+                                    <li><b>Ctrl+Alt+N</b>: New note</li>
+                                    <li><b>Ctrl+F</b>: Search notes</li>
+                                    <li><b>Ctrl+↑/↓</b>: Prev/Next note</li>
+                                    <li><b>Ctrl+R</b>: Start/Stop recording</li>
+                                    <li><b>Ctrl+Alt+T</b>: Start/Stop Live Transcribe</li>
+                                </ul>
+                            </div>
+                            
+                            <div style="background:#e3f2fd;border-left:3px solid #2196f3;padding:0.5em;margin-bottom:0.8em;font-size:0.85em;color:#1565c0;">
+                                <b>💡 Voice Control Tip:</b><br>
+                                During Live Transcribe, say <b>"stop live"</b> to stop transcription without touching any buttons!
+                            </div>
+                            
+                            <div>
+                                <b style="color:#555;">Advanced Voice Commands:</b>
+                                <ul style="margin:0.3em 0 0 1em;padding:0;font-size:0.75em;">
+                                    <li><b>"start live"</b>: Begin live transcription</li>
+                                    <li><b>"stop live"</b>: End live transcription (hands-free!)</li>
+                                    <li><b>"new note"</b>: Create a new note</li>
+                                    <li><b>"search [title]"</b>: Search for notes by title</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Middle: Note list, search, new note -->
+            <div style="width:320px;min-width:260px;max-width:400px;background:#f8f9fa;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;">
+                <div style="padding:1.2em 1em 0.5em 1.2em;">
+                    <button onclick="createNewNote()" style="width:100%;margin-bottom:1em;">+ New Note</button>
+                    <div style="display:flex;gap:0.5em;margin-bottom:0.7em;align-items:center;">
+                        <input id="searchNotes" type="text" placeholder="Search notes..." style="flex:1;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
+                        <select id="searchType" style="padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;background:white;" onchange="renderNotesList()">
+                            <option value="both">All</option>
+                            <option value="title">Title</option>
+                            <option value="content">Content</option>
+                        </select>
+                    </div>
+                    <input id="dateFilter" type="date" style="width:100%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
+                </div>
+                <ul id="notesList" class="notes-list" style="flex:1;overflow-y:auto;margin:0 0.5em 0.5em 0.5em;"></ul>
+            </div>
+            <!-- Main area: Editor, controls -->
+            <div class="main-area" style="flex:1;display:flex;flex-direction:column;min-width:0;">
+                <div style="padding:1.2em 2em 0.5em 2em;display:flex;align-items:center;gap:1.2em;">
+                    <input id="noteName" type="text" placeholder="Note title..." style="font-size:1.2em;width:60%;margin-bottom:0.5em;border:1px solid #e0e0e0;border-radius:4px;padding:0.4em;" oninput="autoSaveNote()" />
+                    <button id="startBtn" onclick="startRecording()">Start Recording</button>
+                    <button id="pauseBtn" onclick="pauseRecording()" style="display:none;">Pause</button>
+                    <button id="continueBtn" onclick="continueRecording()" style="display:none;">Continue</button>
+                    <button id="resumeBtn" onclick="resumeAfterReload()" style="display:none;">Continue</button>
+                    <button id="stopBtn" onclick="stopRecording()" style="display:none;">Stop</button>
+                    <button id="resetBtn" onclick="resetNote()" style="display:none;">Reset</button>
+                </div>
+                <div class="note-box" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+                    <!-- Quill Rich Text Editor -->
+                    <div id="quill-editor" style="min-height: 300px; background: white; border: 1px solid #e0e0e0; border-radius: 4px;flex:1;"></div>
+                    <div style="margin: 0.5em 0 0.7em 0;">
+                        <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Quick symbols:</span>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol('.')">.</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol(',')">,</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol(':')">:</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol(';')">;</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol('!')">!</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol('?')">?</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol('&quot;')">&quot;</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol('&#39;')">&#39;</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol('(')">(</button>
+                        <button type="button" class="symbol-btn" onclick="insertSymbol(')')">)</button>
+                    </div>
+                    <div style="margin-bottom:1em;">
+                        <button onclick="saveNote()">Save Note Locally</button>
+                        <span style="margin-left:0.7em;"></span>
+                        <div style="display:inline-block;position:relative;">
+                            <button id="exportDropdownBtn" onclick="toggleExportDropdown()" style="margin-left:0.5em;">Export Note ▼</button>
+                            <div id="exportDropdown" style="display:none;position:absolute;z-index:10;left:0;top:110%;background:#fff;border:1px solid #e0e0e0;border-radius:6px;box-shadow:0 2px 8px #0002;min-width:160px;">
+                                <button onclick="exportPDF();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">📄 Export as PDF</button>
+                                <button onclick="exportWord();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">📝 Export as Word</button>
+                                <button onclick="exportEmail();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">✉️ Send via Email</button>
+                            </div>
+                        </div>
+                        <button id="liveTranscribeBtn" type="button" style="margin-left:1em;">🎙️ Live Transcribe</button>
+                        <span id="liveTranscribeStatus" style="margin-left:0.7em;color:#1976d2;font-size:0.98em;"></span>
+                        <span id="status"></span>
+                    </div>
+                </div>
                 <div id="microphoneSection" style="margin: 1em 0 0.5em 0;">
                     <button id="micBtn" title="Voice command (try: 'new note', 'search ...', 'next note', 'previous note', 'start recording', 'stop recording')" style="border-radius:50%;width:2.3em;height:2.3em;font-size:1.3em;background:#f4f6fa;color:#1976d2;border:1px solid #e0e0e0;cursor:pointer;vertical-align:middle;">🎤</button>
                     <span id="voiceStatus" style="font-size:0.97em;color:#888;margin-left:0.5em;">Initializing...</span>
@@ -127,64 +223,9 @@
                     <strong>Browser Status:</strong><br>
                     <span id="compatStatus"></span>
                 </div>
-                <h3>Your Notes</h3>
-                <div style="display: flex; gap: 0.5em; margin-bottom: 0.7em; align-items: center;">
-                    <input id="searchNotes" type="text" placeholder="Search notes..." style="flex: 1; padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
-                    <select id="searchType" style="padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;background:white;" onchange="renderNotesList()">
-                        <option value="both">All</option>
-                        <option value="title">Title</option>
-                        <option value="content">Content</option>
-                    </select>
-                </div>
-                <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
-                <ul id="notesList" class="notes-list"></ul>
-                <button onclick="createNewNote()" style="width:100%;margin-top:1em;">+ New Note</button>
-                </div>
-                <div class="main-area">
-                    <button id="startBtn" onclick="startRecording()">Start Recording</button>
-
-                    <button id="pauseBtn" onclick="pauseRecording()" style="display:none;">Pause Recording</button>
-                    <button id="continueBtn" onclick="continueRecording()" style="display:none;">Continue Recording</button>
-                    <button id="resumeBtn" onclick="resumeAfterReload()" style="display:none;">Continue Recording</button>
-                    <button id="stopBtn" onclick="stopRecording()" style="display:none;">Stop Recording</button>
-                    <button id="resetBtn" onclick="resetNote()" style="display:none;">Reset</button>
-                    <div class="note-box">
-                            <h2 id="noteTitle">Your Note:</h2>
-                            <input id="noteName" type="text" placeholder="Note title..." style="display:none;" oninput="autoSaveNote()" />
-                            <!-- Hidden textarea for backward compatibility -->
-                            <textarea id="note" style="display:none;" oninput="autoSaveNote()"></textarea>
-                            <!-- Quill Rich Text Editor -->
-                            <div id="quill-editor" style="min-height: 200px; background: white; border: 1px solid #e0e0e0; border-radius: 4px;">
-                            </div>
-                            <div style="margin: 0.5em 0 0.7em 0;">
-                                <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Quick symbols:</span>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('.')">.</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(',')">,</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(':')">:</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(';')">;</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('!')">!</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('?')">?</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('&quot;')">&quot;</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('&#39;')">&#39;</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('(')">(</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(')')">)</button>
-                            </div>
-                            <button onclick="saveNote()">Save Note Locally</button>
-                            <div style="display:inline-block;position:relative;">
-                              <button id="exportDropdownBtn" onclick="toggleExportDropdown()" style="margin-left:0.5em;">Export Note ▼</button>
-                              <div id="exportDropdown" style="display:none;position:absolute;z-index:10;left:0;top:110%;background:#fff;border:1px solid #e0e0e0;border-radius:6px;box-shadow:0 2px 8px #0002;min-width:160px;">
-                                <button onclick="exportPDF();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">📄 Export as PDF</button>
-                                <button onclick="exportWord();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">📝 Export as Word</button>
-                                <button onclick="exportEmail();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">✉️ Send via Email</button>
-                              </div>
-                            </div>
-                            <button id="liveTranscribeBtn" type="button" style="margin-left:1em;">🎙️ Live Transcribe</button>
-                            <span id="liveTranscribeStatus" style="margin-left:0.7em;color:#1976d2;font-size:0.98em;"></span>
-                            <span id="status"></span>
-                </div>
-                    </div>
-                </div>
             </div>
+        </div>
+    </div>
     <script>
 // Quill Rich Text Editor Global Variables
 let quill;
@@ -229,7 +270,10 @@ function setQuillContent(html) {
     if (quill) {
         quill.root.innerHTML = html;
     } else {
-        document.getElementById('note').value = html.replace(/<[^>]+>/g, ''); // Strip HTML for fallback
+        const noteEl = document.getElementById('note');
+        if (noteEl) {
+            noteEl.value = html.replace(/<[^>]+>/g, ''); // Strip HTML for fallback
+        }
     }
 }
 
@@ -237,7 +281,8 @@ function getQuillText() {
     if (quill) {
         return quill.getText();
     }
-    return document.getElementById('note').value;
+    const noteEl = document.getElementById('note');
+    return noteEl ? noteEl.value : '';
 }
 
 function appendTextToQuill(text) {
@@ -287,7 +332,8 @@ function exportPDF() {
             alert('PDF export library not loaded. Please refresh the page and try again.');
             return;
         }
-        const noteTitle = document.getElementById('noteName').value || 'Untitled';
+        const noteNameEl = document.getElementById('noteName');
+        const noteTitle = noteNameEl ? (noteNameEl.value || 'Untitled') : 'Untitled';
         const noteContent = getQuillContent();
         const plainText = getQuillText();
         
@@ -325,7 +371,8 @@ function exportWord() {
             alert('Word export library not loaded. Please refresh the page and try again.');
             return;
         }
-        const noteTitle = document.getElementById('noteName').value || 'Untitled';
+        const noteNameEl = document.getElementById('noteName');
+        const noteTitle = noteNameEl ? (noteNameEl.value || 'Untitled') : 'Untitled';
         const noteContent = getQuillContent();
         const plainText = getQuillText();
         
@@ -354,7 +401,8 @@ function exportWord() {
 
 // Send via Email (mailto link)  
 function exportEmail() {
-    const noteTitle = document.getElementById('noteName').value || 'Untitled';
+    const noteNameEl = document.getElementById('noteName');
+    const noteTitle = noteNameEl ? (noteNameEl.value || 'Untitled') : 'Untitled';
     const plainText = getQuillText();
     const mailto = `mailto:?subject=${encodeURIComponent(noteTitle)}&body=${encodeURIComponent(plainText)}`;
     window.location.href = mailto;
@@ -402,6 +450,123 @@ function insertSymbol(symbol) {
     textarea.focus();
     autoSaveNote();
 }
+// --- Trash Management ---
+let currentView = 'notes'; // 'notes' or 'trash'
+
+function getTrash() {
+    const trash = localStorage.getItem('trashList');
+    return trash ? JSON.parse(trash) : [];
+}
+
+function saveTrash(trash) {
+    localStorage.setItem('trashList', JSON.stringify(trash));
+}
+
+function moveToTrash(noteIdx) {
+    const notes = getNotes();
+    const trash = getTrash();
+    
+    if (notes[noteIdx]) {
+        const deletedNote = notes.splice(noteIdx, 1)[0];
+        deletedNote.deletedAt = new Date().toLocaleString();
+        trash.unshift(deletedNote);
+        
+        saveNotes(notes);
+        saveTrash(trash);
+        updateTrashCount();
+        
+        // Handle current note index
+        if (currentNoteIdx === noteIdx) {
+            currentNoteIdx = 0;
+        } else if (currentNoteIdx > noteIdx) {
+            currentNoteIdx--;
+        }
+        
+        if (notes.length > 0) {
+            selectNote(currentNoteIdx);
+        } else {
+            createNewNote();
+        }
+    }
+}
+
+function restoreFromTrash(trashIdx) {
+    const notes = getNotes();
+    const trash = getTrash();
+    
+    if (trash[trashIdx]) {
+        const restoredNote = trash.splice(trashIdx, 1)[0];
+        delete restoredNote.deletedAt;
+        notes.unshift(restoredNote);
+        
+        saveNotes(notes);
+        saveTrash(trash);
+        updateTrashCount();
+        
+        if (currentView === 'trash') {
+            renderTrashList();
+        }
+    }
+}
+
+function permanentlyDelete(trashIdx) {
+    const trash = getTrash();
+    if (trash[trashIdx] && confirm('Permanently delete this note? This cannot be undone.')) {
+        trash.splice(trashIdx, 1);
+        saveTrash(trash);
+        updateTrashCount();
+        renderTrashList();
+    }
+}
+
+function updateTrashCount() {
+    const trash = getTrash();
+    const countEl = document.getElementById('trashCount');
+    if (countEl) {
+        countEl.textContent = trash.length > 0 ? `(${trash.length})` : '';
+    }
+}
+
+function showAllNotes() {
+    currentView = 'notes';
+    document.getElementById('allNotesBtn').style.color = '#1976d2';
+    document.getElementById('trashBtn').style.color = '';
+    renderNotesList();
+}
+
+function showTrash() {
+    currentView = 'trash';
+    document.getElementById('allNotesBtn').style.color = '';
+    document.getElementById('trashBtn').style.color = '#1976d2';
+    renderTrashList();
+}
+
+function renderTrashList() {
+    const trash = getTrash();
+    const ul = document.getElementById('notesList');
+    if (!ul) return;
+
+    ul.innerHTML = '';
+    
+    trash.forEach((note, idx) => {
+        const li = document.createElement('li');
+        li.className = 'note-list-item';
+        li.innerHTML = `
+            <div style="flex:1;">
+                <span class='note-title'>${note.title || 'Untitled'}</span>
+                <div style="font-size:0.8em;color:#888;">Deleted: ${note.deletedAt}</div>
+            </div>
+            <button onclick='event.stopPropagation();restoreFromTrash(${idx})' title='Restore note' style="margin-right:0.5em;background:#28a745;color:white;border:none;padding:0.2em 0.5em;border-radius:3px;cursor:pointer;">↺</button>
+            <button onclick='event.stopPropagation();permanentlyDelete(${idx})' title='Delete permanently' style="background:#dc3545;color:white;border:none;padding:0.2em 0.5em;border-radius:3px;cursor:pointer;">🗑️</button>
+        `;
+        ul.appendChild(li);
+    });
+    
+    if (trash.length === 0) {
+        ul.innerHTML = '<li style="padding:1em;text-align:center;color:#888;font-style:italic;">Trash is empty</li>';
+    }
+}
+
 // --- Multiple Notes Management ---
 function getNotes() {
     const notes = localStorage.getItem('notesList');
@@ -525,33 +690,34 @@ function selectNote(idx) {
         setQuillContent(notes[idx].content);
         
         // Also update hidden textarea for compatibility
-        document.getElementById('note').value = notes[idx].content;
+        const noteEl = document.getElementById('note');
+        if (noteEl) {
+            noteEl.value = notes[idx].content;
+        }
         
-        document.getElementById('noteName').value = notes[idx].title;
-        document.getElementById('noteName').style.display = 'inline-block';
-        document.getElementById('noteTitle').textContent = 'Your Note:';
+        // Set title in visible input
+        const noteNameEl = document.getElementById('noteName');
+        if (noteNameEl) {
+            noteNameEl.value = notes[idx].title;
+            noteNameEl.style.display = 'inline-block';
+        }
+        
+        // Update title display if exists
+        const noteTitleEl = document.getElementById('noteTitle');
+        if (noteTitleEl) {
+            noteTitleEl.textContent = 'Your Note:';
+        }
+        
         renderNotesList();
     }
 }
 
 function deleteNote(idx) {
-    let notes = getNotes();
-    if (notes.length > 0) {
-        notes.splice(idx, 1);
-        saveNotes(notes);
-        if (currentNoteIdx === idx) {
-            currentNoteIdx = 0;
-        } else if (currentNoteIdx > idx) {
-            currentNoteIdx--;
-        }
-        if (notes.length > 0) {
-            selectNote(currentNoteIdx);
-        } else {
-            document.getElementById('note').value = '';
-            document.getElementById('noteName').value = '';
-            document.getElementById('noteName').style.display = 'none';
-        }
+    if (currentView === 'notes') {
+        moveToTrash(idx);
         renderNotesList();
+    } else {
+        permanentlyDelete(idx);
     }
 }
 
@@ -564,11 +730,17 @@ function autoSaveNote() {
     if (notes[currentNoteIdx]) {
         // Get content from Quill editor
         notes[currentNoteIdx].content = getQuillContent();
-        notes[currentNoteIdx].title = document.getElementById('noteName').value || 'Untitled';
+        
+        // Get title safely
+        const noteNameEl = document.getElementById('noteName');
+        notes[currentNoteIdx].title = noteNameEl ? (noteNameEl.value || 'Untitled') : 'Untitled';
         notes[currentNoteIdx].timestamp = new Date().toLocaleString();
         
         // Also sync to hidden textarea for compatibility
-        document.getElementById('note').value = getQuillText();
+        const noteEl = document.getElementById('note');
+        if (noteEl) {
+            noteEl.value = getQuillText();
+        }
         
         saveNotes(notes);
         renderNotesList();
@@ -584,9 +756,18 @@ function restoreNote() {
         // Load content into Quill editor
         setQuillContent(notes[0].content);
         
-        document.getElementById('note').value = notes[0].content;
-        document.getElementById('noteName').value = notes[0].title;
-        document.getElementById('noteName').style.display = 'inline-block';
+        // Set title in visible input
+        const noteNameEl = document.getElementById('noteName');
+        if (noteNameEl) {
+            noteNameEl.value = notes[0].title;
+            noteNameEl.style.display = 'inline-block';
+        }
+        
+        // Update hidden textarea for backward compatibility
+        const noteEl = document.getElementById('note');
+        if (noteEl) {
+            noteEl.value = notes[0].content;
+        }
     } else {
         // Create default "Untitled" note if no notes exist
         const defaultNote = {
@@ -601,17 +782,39 @@ function restoreNote() {
         // Initialize empty Quill editor
         setQuillContent('');
         
-        document.getElementById('note').value = '';
-        document.getElementById('noteName').value = 'Untitled';
-        document.getElementById('noteName').style.display = 'inline-block';
+        // Set title in visible input
+        const noteNameEl = document.getElementById('noteName');
+        if (noteNameEl) {
+            noteNameEl.value = 'Untitled';
+            noteNameEl.style.display = 'inline-block';
+        }
+        
+        // Update hidden textarea for backward compatibility
+        const noteEl = document.getElementById('note');
+        if (noteEl) {
+            noteEl.value = '';
+        }
     }
     renderNotesList();
 }
 
 function resetNote() {
-    document.getElementById('note').value = '';
-    document.getElementById('noteName').value = '';
-    document.getElementById('noteName').style.display = 'none';
+    // Clear Quill editor
+    setQuillContent('');
+    
+    // Clear hidden textarea
+    const noteEl = document.getElementById('note');
+    if (noteEl) {
+        noteEl.value = '';
+    }
+    
+    // Clear note title
+    const noteNameEl = document.getElementById('noteName');
+    if (noteNameEl) {
+        noteNameEl.value = '';
+        noteNameEl.style.display = 'none';
+    }
+    
     // Remove current note from notesList
     let notes = getNotes();
     if (notes.length > 0) {
@@ -636,9 +839,12 @@ let isPaused = false;
 let stream;
 
 function saveNote() {
-    var note = document.getElementById('note').value;
-    if (!note) {
-        document.getElementById('status').textContent = 'No note to save.';
+    var note = getQuillContent() || getQuillText();
+    if (!note || note.trim() === '') {
+        const statusEl = document.getElementById('status');
+        if (statusEl) {
+            statusEl.textContent = 'No note to save.';
+        }
         return;
     }
     // Download note as a .txt file locally
@@ -1212,9 +1418,15 @@ let noteLiveRecognition = null;
 let noteLiveListening = false;
 
 function setupLiveTranscribeButton() {
+    console.log('Setting up live transcribe button...');
     const btn = document.getElementById('liveTranscribeBtn');
     const status = document.getElementById('liveTranscribeStatus');
-    if (!btn || !status) return;
+    console.log('Live transcribe button found:', !!btn);
+    console.log('Live transcribe status found:', !!status);
+    if (!btn || !status) {
+        console.error('Live transcribe elements not found!');
+        return;
+    }
     
     // Restore Web Speech API for browsers that support it
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1224,9 +1436,12 @@ function setupLiveTranscribeButton() {
         btn.style.cursor = '';
         status.textContent = '';
         btn.onclick = function() {
+            console.log('Live transcribe button clicked! Current state:', noteLiveListening);
             if (!noteLiveListening) {
+                console.log('Starting live transcribe...');
                 startLiveTranscribe();
             } else {
+                console.log('Stopping live transcribe...');
                 stopLiveTranscribe();
             }
         };
@@ -1314,10 +1529,16 @@ function setupLiveTranscribeButton() {
 function startLiveTranscribe() {
     const btn = document.getElementById('liveTranscribeBtn');
     const status = document.getElementById('liveTranscribeStatus');
-    const noteArea = document.getElementById('note');
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition || !noteArea) return;
+    if (!SpeechRecognition) {
+        if (status) status.textContent = 'Speech recognition not supported';
+        return;
+    }
+    if (!btn || !status) {
+        console.error('Live transcribe elements not found');
+        return;
+    }
     
     noteLiveRecognition = new SpeechRecognition();
     noteLiveRecognition.lang = 'en-US';
@@ -1436,6 +1657,10 @@ window.addEventListener('DOMContentLoaded', function() {
     try {
         // Initialize Quill Rich Text Editor first
         initializeQuill();
+        
+        // Initialize UI
+        updateTrashCount();
+        showAllNotes(); // Start with "All notes" view
         
         restoreNote();
         showResumeIfNeeded();
