@@ -53,6 +53,15 @@
             background: #e6f0ff;
             box-shadow: 0 2px 8px #1976d233;
         }
+        .note-list-item.search-match {
+            background: #ffeaea !important;
+            border-left: 4px solid #e53935 !important;
+            box-shadow: 0 2px 8px #e5393533;
+        }
+        .note-list-item.selected.search-match {
+            background: #ffe0e0 !important;
+            border-left: 4px solid #c62828 !important;
+        }
         .note-list-item:hover { background: #f0f6ff; }
         .note-title { font-weight: 500; color: #1976d2; margin-right: auto; }
         .note-timestamp { font-size: 0.85em; color: #888; margin-left: 0.5em; }
@@ -115,7 +124,13 @@
                     <span id="compatStatus"></span>
                 </div>
                 <h3>Your Notes</h3>
-                <input id="searchNotes" type="text" placeholder="Search notes..." style="width:95%;margin-bottom:0.7em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
+                <div style="display: flex; gap: 0.5em; margin-bottom: 0.7em; align-items: center;">
+                    <input id="searchNotes" type="text" placeholder="Search notes..." style="flex: 1; padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
+                    <select id="searchType" style="padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;background:white;" onchange="renderNotesList()">
+                        <option value="title">Title Only</option>
+                        <option value="both">Title + Content</option>
+                    </select>
+                </div>
                 <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
                 <ul id="notesList" class="notes-list"></ul>
                 <button onclick="createNewNote()" style="width:100%;margin-top:1em;">+ New Note</button>
@@ -394,43 +409,54 @@ function saveNotes(notes) {
 
 function renderNotesList() {
     console.log('Rendering notes list');
-    let notes = getNotes();
+    let allNotes = getNotes();
     const searchEl = document.getElementById('searchNotes');
+    const searchTypeEl = document.getElementById('searchType');
     const dateEl = document.getElementById('dateFilter');
 
-    // Apply search filter (search in both title and content)
-    let search = '';
+    // Get search parameters
+    let searchTerm = '';
+    let searchType = 'title'; // default
     if (searchEl && searchEl.value.trim()) {
-        search = searchEl.value.toLowerCase().trim();
-        console.log('Filtering by search:', search);
-        notes = notes.filter(n => {
-            const titleMatch = n.title && n.title.toLowerCase().includes(search);
-            const contentMatch = n.content && n.content.toLowerCase().includes(search);
-            return titleMatch || contentMatch;
-        });
+        searchTerm = searchEl.value.toLowerCase().trim();
+    }
+    if (searchTypeEl) {
+        searchType = searchTypeEl.value;
     }
 
-    // Apply date filter
+    // Apply date filter first (this actually removes notes)
+    let notes = allNotes;
     if (dateEl && dateEl.value) {
         const date = dateEl.value;
         console.log('Filtering by date:', date);
         notes = notes.filter(n => n.timestamp && n.timestamp.includes(date));
     }
 
-    // If a voice search is active, sort and highlight matches, but show all notes
-    let allNotes = getNotes();
+    // For search: sort and highlight instead of filtering
     let displayNotes = notes;
-    let voiceSearch = voiceSearchTerm && voiceSearchTerm.trim() !== '';
-    if (voiceSearch && !search) {
-        // Only apply voice search sorting if no manual search filter is active
-        displayNotes = allNotes;
-        const term = voiceSearchTerm.toLowerCase();
-        // Sort: matches first, then others
-        displayNotes = [...displayNotes].sort((a, b) => {
-            const aMatch = (a.title && a.title.toLowerCase().includes(term)) || (a.content && a.content.toLowerCase().includes(term));
-            const bMatch = (b.title && b.title.toLowerCase().includes(term)) || (b.content && b.content.toLowerCase().includes(term));
+    let activeSearch = searchTerm || (voiceSearchTerm && voiceSearchTerm.trim() !== '');
+    
+    if (activeSearch) {
+        // Use voice search term if no manual search
+        const term = searchTerm || voiceSearchTerm.toLowerCase();
+        
+        // Sort: matches first, then non-matches
+        displayNotes = [...notes].sort((a, b) => {
+            let aMatch = false;
+            let bMatch = false;
+            
+            if (searchType === 'title') {
+                aMatch = a.title && a.title.toLowerCase().includes(term);
+                bMatch = b.title && b.title.toLowerCase().includes(term);
+            } else { // both title and content
+                aMatch = (a.title && a.title.toLowerCase().includes(term)) || 
+                        (a.content && a.content.toLowerCase().includes(term));
+                bMatch = (b.title && b.title.toLowerCase().includes(term)) || 
+                        (b.content && b.content.toLowerCase().includes(term));
+            }
+            
             if (aMatch === bMatch) return 0;
-            return aMatch ? -1 : 1;
+            return aMatch ? -1 : 1; // matches come first
         });
     }
 
@@ -447,12 +473,24 @@ function renderNotesList() {
         // Find the real index in the full notes array for select/delete
         const realIdx = allNotes.findIndex(n => n.timestamp === note.timestamp && n.title === note.title);
         const li = document.createElement('li');
-        let match = false;
-        if (voiceSearch && !search) {
-            const term = voiceSearchTerm.toLowerCase();
-            match = (note.title && note.title.toLowerCase().includes(term)) || (note.content && note.content.toLowerCase().includes(term));
+        
+        // Check if this note matches current search
+        let isSearchMatch = false;
+        if (activeSearch) {
+            const term = searchTerm || voiceSearchTerm.toLowerCase();
+            if (searchType === 'title') {
+                isSearchMatch = note.title && note.title.toLowerCase().includes(term);
+            } else { // both title and content
+                isSearchMatch = (note.title && note.title.toLowerCase().includes(term)) || 
+                              (note.content && note.content.toLowerCase().includes(term));
+            }
         }
-        li.className = 'note-list-item' + (realIdx === currentNoteIdx ? ' selected' : '') + (match ? ' voice-search-match' : '');
+        
+        // Apply classes: selected + search-match highlighting
+        let classes = 'note-list-item';
+        if (realIdx === currentNoteIdx) classes += ' selected';
+        if (isSearchMatch) classes += ' search-match';
+        li.className = classes;
         li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') selectNote(realIdx); };
         li.innerHTML = `<span class='note-title'>${note.title || 'Untitled'}</span><span class='note-timestamp'>${note.timestamp}</span><button class='delete-btn' onclick='event.stopPropagation();deleteNote(${realIdx})' title='Delete note'>🗑️</button>`;
         ul.appendChild(li);
@@ -1409,10 +1447,7 @@ window.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // Add style for voice search match
-        const style = document.createElement('style');
-        style.innerHTML = `.voice-search-match { background: #ffeaea !important; border-left: 4px solid #e53935 !important; }`;
-        document.head.appendChild(style);
+        // Search match styles are now in main CSS
     } catch (e) {
         console.error('Initialization failed:', e);
         alert('Initialization failed: ' + e.message);
