@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="{{ url_for('static', filename='html2pdf.bundle.min.js') }}" onerror="this.onerror=null; this.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';"></script>
+    <script src="{{ url_for('static', filename='html-docx.js') }}"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Voice Assistant - Note Taker</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <!-- Updated: Search in content + Fixed shortcuts v2.0 -->
     <style>
         .symbol-btn {
             background: #f4f6fa;
@@ -68,26 +71,15 @@
         #resetBtn:hover, #pauseBtn:hover, #continueBtn:hover, #resumeBtn:hover, #stopBtn:hover { background: #e6f0ff; }
         #noteName { font-size: 1.1em; width: 70%; margin-bottom: 0.5em; border: 1px solid #e0e0e0; border-radius: 4px; padding: 0.4em; }
         #note { width: 100%; border-radius: 6px; border: 1px solid #e0e0e0; padding: 0.7em; font-size: 1.05em; margin-bottom: 0.7em; }
-        #searchMode { cursor: pointer; color: #444; transition: border-color 0.15s; }
-        #searchMode:hover { border-color: #1976d2; }
-        #searchMode:focus { outline: none; border-color: #1976d2; box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2); }
-        .voice-search-match { 
-            background: linear-gradient(135deg, #ffebee, #ffcdd2) !important; 
-            border: 2px solid #e53935 !important; 
-            box-shadow: 0 2px 8px rgba(229, 57, 53, 0.3) !important;
-            transform: scale(1.02) !important;
-            transition: all 0.2s ease !important;
-        }
     </style>
 </head>
 <body>
     <h1>AI Voice Assistant - Note Taker</h1>
     <div class="instructions">
-    <p><b>Welcome!</b> This is a <b>demo and prototype AI Note Taker</b>. It may make mistakes sometimes.<br>
-    To take a note, say <b>"Start Note"</b> or click the button below.<br>
-    The assistant will listen and convert your speech to text.<br>
-    When you're done, your note will appear below and can be saved locally.</p>
-    <div style="margin:0.7em 0 1em 0;"><b style="color:#1976d2;">ℹ️ Works perfectly on Chrome browser. For best experience, use Chrome.</b></div>
+        <p><b>Welcome!</b> This is a <b>demo and prototype AI Note Taker</b>. It may make mistakes sometimes.<br>
+        To take a note, say <b>"Start Note"</b> or click the button below.<br>
+        The assistant will listen and convert your speech to text.<br>
+        When you're done, your note will appear below and can be saved locally.</p>
         <div style="margin-top:0.5em;">
             <b>Tips for best results:</b>
             <ul style="margin:0 0 0 1em;padding:0;">
@@ -102,81 +94,176 @@
                 <li><b>Ctrl+F</b>: Search notes</li>
                 <li><b>Ctrl+↑/↓</b>: Previous/Next note</li>
                 <li><b>Ctrl+R</b>: Start/Stop recording</li>
-                <li><b>Ctrl+T</b>: Start/Stop Live Transcribe</li>
+                <li><b>Ctrl+Alt+T</b>: Start/Stop Live Transcribe</li>
             </ul>
         </div>
     </div>
-    <div class="notebook-container">
-        <div class="sidebar">
-            <div id="microphoneSection" style="margin: 1em 0 0.5em 0;">
-                <button id="micBtn" title="Voice command (try: 'new note', 'search ...', 'next note', 'previous note', 'start recording', 'stop recording')" style="border-radius:50%;width:2.3em;height:2.3em;font-size:1.3em;background:#f4f6fa;color:#1976d2;border:1px solid #e0e0e0;cursor:pointer;vertical-align:middle;">🎤</button>
-                <span id="voiceStatus" style="font-size:0.97em;color:#888;margin-left:0.5em;">Initializing...</span>
-            </div>
-            <div style="font-size:0.85em;color:#666;margin-bottom:0.5em;">
-                <strong>Voice Commands:</strong><br>
-                   "new note", "search [title]", "clear search", "show all notes", "next note", "previous note", "start recording", "stop recording", "start live", "stop live"
-            </div>
-            <div id="browserCompatibility" style="font-size:0.8em;color:#888;margin-bottom:1em;padding:0.5em;background:#f9f9f9;border-radius:4px;display:none;">
-                <strong>Browser Status:</strong><br>
-                <span id="compatStatus"></span>
-            </div>
-            <h3>Your Notes</h3>
-            <div style="display:flex;gap:0.5em;margin-bottom:0.7em;">
-                <input id="searchNotes" type="text" placeholder="Search notes..." style="flex:1;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
-                <select id="searchMode" style="padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:0.9em;background:#fff;" onchange="renderNotesList()">
-                    <option value="title">Title Only</option>
-                    <option value="content">Full Content</option>
-                </select>
-            </div>
-            <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
-            <ul id="notesList" class="notes-list"></ul>
-            <button onclick="createNewNote()" style="width:100%;margin-top:1em;">+ New Note</button>
-        </div>
-        <div class="main-area">
-            <button id="startBtn" onclick="startRecording()">Start Recording</button>
-            <button id="pauseBtn" onclick="pauseRecording()" style="display:none;">Pause Recording</button>
-            <button id="continueBtn" onclick="continueRecording()" style="display:none;">Continue Recording</button>
-            <button id="resumeBtn" onclick="resumeAfterReload()" style="display:none;">Continue Recording</button>
-            <button id="stopBtn" onclick="stopRecording()" style="display:none;">Stop Recording</button>
-            <button id="resetBtn" onclick="resetNote()" style="display:none;">Reset</button>
-            <div class="note-box">
-                <h2 id="noteTitle">Your Note:</h2>
-                <input id="noteName" type="text" placeholder="Note title..." style="display:none;" oninput="autoSaveNote()" />
-                <textarea id="note" rows="5" cols="60" oninput="autoSaveNote()"></textarea>
-                <div style="margin: 0.5em 0 0.7em 0;">
-                    <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Quick symbols:</span>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol('.')">.</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol(',')">,</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol(':')">:</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol(';')">;</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol('!')">!</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol('?')">?</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol('&quot;')">&quot;</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol('&#39;')">&#39;</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol('(')">(</button>
-                    <button type="button" class="symbol-btn" onclick="insertSymbol(')')">)</button>
+            <div class="notebook-container">
+                <div class="sidebar">
+                <div id="microphoneSection" style="margin: 1em 0 0.5em 0;">
+                    <button id="micBtn" title="Voice command (try: 'new note', 'search ...', 'next note', 'previous note', 'start recording', 'stop recording')" style="border-radius:50%;width:2.3em;height:2.3em;font-size:1.3em;background:#f4f6fa;color:#1976d2;border:1px solid #e0e0e0;cursor:pointer;vertical-align:middle;">🎤</button>
+                    <span id="voiceStatus" style="font-size:0.97em;color:#888;margin-left:0.5em;">Initializing...</span>
                 </div>
-                <button onclick="saveNote()">Save Note Locally</button>
-                <button id="liveTranscribeBtn" type="button" style="margin-left:1em;">🎙️ Live Transcribe</button>
-                <span id="liveTranscribeStatus" style="margin-left:0.7em;color:#1976d2;font-size:0.98em;"></span>
-                <span id="status"></span>
-            </div>
-        </div>
-    </div>
+                <div style="font-size:0.85em;color:#666;margin-bottom:0.5em;">
+                    <strong>Voice Commands:</strong><br>
+                    "new note", "search [text]", "next note", "previous note", "start recording", "stop recording"
+                </div>
+                <div id="browserCompatibility" style="font-size:0.8em;color:#888;margin-bottom:1em;padding:0.5em;background:#f9f9f9;border-radius:4px;display:none;">
+                    <strong>Browser Status:</strong><br>
+                    <span id="compatStatus"></span>
+                </div>
+                <h3>Your Notes</h3>
+                <input id="searchNotes" type="text" placeholder="Search notes..." style="width:95%;margin-bottom:0.7em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
+                <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
+                <ul id="notesList" class="notes-list"></ul>
+                <button onclick="createNewNote()" style="width:100%;margin-top:1em;">+ New Note</button>
+                </div>
+                <div class="main-area">
+                    <button id="startBtn" onclick="startRecording()">Start Recording</button>
 
-<script>
-// Global variables
+                    <button id="pauseBtn" onclick="pauseRecording()" style="display:none;">Pause Recording</button>
+                    <button id="continueBtn" onclick="continueRecording()" style="display:none;">Continue Recording</button>
+                    <button id="resumeBtn" onclick="resumeAfterReload()" style="display:none;">Continue Recording</button>
+                    <button id="stopBtn" onclick="stopRecording()" style="display:none;">Stop Recording</button>
+                    <button id="resetBtn" onclick="resetNote()" style="display:none;">Reset</button>
+                    <div class="note-box">
+                            <h2 id="noteTitle">Your Note:</h2>
+                            <input id="noteName" type="text" placeholder="Note title..." style="display:none;" oninput="autoSaveNote()" />
+                            <textarea id="note" rows="5" cols="60" oninput="autoSaveNote()"></textarea>
+                            <div style="margin: 0.5em 0 0.7em 0;">
+                                <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Quick symbols:</span>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('.')">.</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(',')">,</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(':')">:</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(';')">;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('!')">!</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('?')">?</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('&quot;')">&quot;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('&#39;')">&#39;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('(')">(</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(')')">)</button>
+                            </div>
+                            <button onclick="saveNote()">Save Note Locally</button>
+                            <div style="display:inline-block;position:relative;">
+                              <button id="exportDropdownBtn" onclick="toggleExportDropdown()" style="margin-left:0.5em;">Export Note ▼</button>
+                              <div id="exportDropdown" style="display:none;position:absolute;z-index:10;left:0;top:110%;background:#fff;border:1px solid #e0e0e0;border-radius:6px;box-shadow:0 2px 8px #0002;min-width:160px;">
+                                <button onclick="exportPDF();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">📄 Export as PDF</button>
+                                <button onclick="exportWord();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">📝 Export as Word</button>
+                                <button onclick="exportEmail();hideExportDropdown();" style="width:100%;text-align:left;padding:0.7em 1em;border:none;background:none;color:#1976d2;">✉️ Send via Email</button>
+                              </div>
+                            </div>
+                            <button id="liveTranscribeBtn" type="button" style="margin-left:1em;">🎙️ Live Transcribe</button>
+                            <span id="liveTranscribeStatus" style="margin-left:0.7em;color:#1976d2;font-size:0.98em;"></span>
+                            <span id="status"></span>
+                </div>
+                    </div>
+                </div>
+            </div>
+    <script>
+// Export as PDF using html2pdf.js
+function exportPDF() {
+    try {
+        if (typeof html2pdf === 'undefined') {
+            alert('PDF export library not loaded. Please refresh the page and try again.');
+            return;
+        }
+        const noteTitle = document.getElementById('noteName').value || 'Untitled';
+        const noteContent = document.getElementById('note').value;
+        if (!noteContent.trim()) {
+            alert('Note is empty. Please add some content before exporting.');
+            return;
+        }
+        const element = document.createElement('div');
+        element.innerHTML = `<h2>${noteTitle}</h2><pre style="white-space: pre-wrap; font-family: Arial, sans-serif;">${noteContent}</pre>`;
+        
+        const opt = {
+            margin: 0.5,
+            filename: noteTitle + '.pdf',
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+        
+        html2pdf().from(element).set(opt).save().then(() => {
+            console.log('PDF exported successfully');
+        }).catch((error) => {
+            console.error('PDF Export Error:', error);
+            alert('Error generating PDF: ' + error.message);
+        });
+    } catch (error) {
+        console.error('PDF Export Error:', error);
+        alert('Error exporting PDF: ' + error.message);
+    }
+}
+
+// Export as Word using html-docx-js
+function exportWord() {
+    try {
+        if (typeof htmlDocx === 'undefined') {
+            alert('Word export library not loaded. Please refresh the page and try again.');
+            return;
+        }
+        const noteTitle = document.getElementById('noteName').value || 'Untitled';
+        const noteContent = document.getElementById('note').value;
+        if (!noteContent.trim()) {
+            alert('Note is empty. Please add some content before exporting.');
+            return;
+        }
+        
+        const contentHtml = `<h1>${noteTitle}</h1><p>${noteContent.replace(/\n/g, '<br>')}</p>`;
+        const converted = htmlDocx.asBlob(contentHtml);
+        
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(converted);
+        a.download = noteTitle + '.rtf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // Clean up the URL object
+        setTimeout(() => URL.revokeObjectURL(a.href), 100);
+    } catch (error) {
+        console.error('Word Export Error:', error);
+        alert('Error exporting Word document: ' + error.message);
+    }
+}
+
+// Send via Email (mailto link)  
+function exportEmail() {
+    const noteTitle = document.getElementById('noteName').value || 'Untitled';
+    const noteContent = document.getElementById('note').value;
+    const mailto = `mailto:?subject=${encodeURIComponent(noteTitle)}&body=${encodeURIComponent(noteContent)}`;
+    window.location.href = mailto;
+}
+
+// Export dropdown logic
+function toggleExportDropdown() {
+    const dd = document.getElementById('exportDropdown');
+    if (dd.style.display === 'block') {
+        dd.style.display = 'none';
+    } else {
+        dd.style.display = 'block';
+        // Close if click outside
+        setTimeout(() => {
+            document.addEventListener('click', hideExportDropdownOnClick, { once: true });
+        }, 0);
+    }
+}
+
+function hideExportDropdown() {
+    const dd = document.getElementById('exportDropdown');
+    if (dd) dd.style.display = 'none';
+}
+
+function hideExportDropdownOnClick(e) {
+    const btn = document.getElementById('exportDropdownBtn');
+    const dd = document.getElementById('exportDropdown');
+    if (!btn.contains(e.target) && !dd.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+}
+
+// Global variable to track voice search term
 let voiceSearchTerm = '';
-let currentNoteIdx = 0;
-let mediaRecorder;
-let audioChunks = [];
-let isRecording = false;
-let isPaused = false;
-let stream;
-let voiceRecognition;
-let voiceListening = false;
-let noteLiveRecognition = null;
-let noteLiveListening = false;
 
 // Insert symbol at cursor position in note textarea
 function insertSymbol(symbol) {
@@ -190,21 +277,10 @@ function insertSymbol(symbol) {
     textarea.focus();
     autoSaveNote();
 }
-
-// Notes management functions
+// --- Multiple Notes Management ---
 function getNotes() {
     const notes = localStorage.getItem('notesList');
-    let parsed = notes ? JSON.parse(notes) : [];
-    // Always ensure at least one untitled note exists
-    if (!parsed.length) {
-        parsed = [{
-            title: 'Untitled',
-            content: '',
-            timestamp: new Date().toLocaleString()
-        }];
-        localStorage.setItem('notesList', JSON.stringify(parsed));
-    }
-    return parsed;
+    return notes ? JSON.parse(notes) : [];
 }
 
 function saveNotes(notes) {
@@ -217,57 +293,59 @@ function renderNotesList() {
     const searchEl = document.getElementById('searchNotes');
     const dateEl = document.getElementById('dateFilter');
 
-    // Apply search filter
+    // Apply search filter (search in both title and content)
     let search = '';
     if (searchEl && searchEl.value.trim()) {
         search = searchEl.value.toLowerCase().trim();
-        const searchMode = document.getElementById('searchMode').value;
-        
+        console.log('Filtering by search:', search);
         notes = notes.filter(n => {
-            if (searchMode === 'title') {
-                // Search in title only
-                return n.title && n.title.toLowerCase().includes(search);
-            } else {
-                // Search in both title and content
-                const titleMatch = n.title && n.title.toLowerCase().includes(search);
-                const contentMatch = n.content && n.content.toLowerCase().includes(search);
-                return titleMatch || contentMatch;
-            }
+            const titleMatch = n.title && n.title.toLowerCase().includes(search);
+            const contentMatch = n.content && n.content.toLowerCase().includes(search);
+            return titleMatch || contentMatch;
         });
     }
 
     // Apply date filter
     if (dateEl && dateEl.value) {
         const date = dateEl.value;
+        console.log('Filtering by date:', date);
         notes = notes.filter(n => n.timestamp && n.timestamp.includes(date));
     }
 
-    // Voice search handling
+    // If a voice search is active, sort and highlight matches, but show all notes
     let allNotes = getNotes();
     let displayNotes = notes;
     let voiceSearch = voiceSearchTerm && voiceSearchTerm.trim() !== '';
     if (voiceSearch && !search) {
+        // Only apply voice search sorting if no manual search filter is active
         displayNotes = allNotes;
-        const term = voiceSearchTerm.toLowerCase().trim();
+        const term = voiceSearchTerm.toLowerCase();
+        // Sort: matches first, then others
         displayNotes = [...displayNotes].sort((a, b) => {
-            const aMatch = a.title && a.title.toLowerCase() === term;
-            const bMatch = b.title && b.title.toLowerCase() === term;
+            const aMatch = (a.title && a.title.toLowerCase().includes(term)) || (a.content && a.content.toLowerCase().includes(term));
+            const bMatch = (b.title && b.title.toLowerCase().includes(term)) || (b.content && b.content.toLowerCase().includes(term));
             if (aMatch === bMatch) return 0;
             return aMatch ? -1 : 1;
         });
     }
 
     const ul = document.getElementById('notesList');
-    if (!ul) return;
+    if (!ul) {
+        console.log('Notes list element not found');
+        return;
+    }
 
     ul.innerHTML = '';
+    console.log('Displaying', displayNotes.length, 'notes');
+
     displayNotes.forEach((note, idx) => {
+        // Find the real index in the full notes array for select/delete
         const realIdx = allNotes.findIndex(n => n.timestamp === note.timestamp && n.title === note.title);
         const li = document.createElement('li');
         let match = false;
         if (voiceSearch && !search) {
-            const term = voiceSearchTerm.toLowerCase().trim();
-            match = note.title && note.title.toLowerCase() === term;
+            const term = voiceSearchTerm.toLowerCase();
+            match = (note.title && note.title.toLowerCase().includes(term)) || (note.content && note.content.toLowerCase().includes(term));
         }
         li.className = 'note-list-item' + (realIdx === currentNoteIdx ? ' selected' : '') + (match ? ' voice-search-match' : '');
         li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') selectNote(realIdx); };
@@ -277,16 +355,7 @@ function renderNotesList() {
 }
 
 function createNewNote() {
-    // Save current note if it has content before creating new
-    const noteArea = document.getElementById('note');
-    const noteName = document.getElementById('noteName');
-    let notes = getNotes();
-    if (notes.length && (noteArea.value.trim() || noteName.value.trim())) {
-        notes[0].content = noteArea.value;
-        notes[0].title = noteName.value || 'Untitled';
-        notes[0].timestamp = new Date().toLocaleString();
-        saveNotes(notes);
-    }
+    const notes = getNotes();
     const now = new Date();
     const note = {
         title: 'Untitled',
@@ -333,7 +402,11 @@ function deleteNote(idx) {
     }
 }
 
+let currentNoteIdx = 0;
+
+// --- All app logic in one script block ---
 function autoSaveNote() {
+    // Save current note content and title to notesList
     const notes = getNotes();
     if (notes[currentNoteIdx]) {
         notes[currentNoteIdx].content = document.getElementById('note').value;
@@ -345,16 +418,26 @@ function autoSaveNote() {
 }
 
 function restoreNote() {
-    const notes = getNotes();
+    // On load, restore notes list and select first note if exists
+    let notes = getNotes();
     if (notes.length > 0) {
         currentNoteIdx = 0;
         document.getElementById('note').value = notes[0].content;
         document.getElementById('noteName').value = notes[0].title;
         document.getElementById('noteName').style.display = 'inline-block';
     } else {
+        // Create default "Untitled" note if no notes exist
+        const defaultNote = {
+            title: 'Untitled',
+            content: '',
+            timestamp: new Date().toLocaleString()
+        };
+        notes.push(defaultNote);
+        saveNotes(notes);
+        currentNoteIdx = 0;
         document.getElementById('note').value = '';
-        document.getElementById('noteName').value = '';
-        document.getElementById('noteName').style.display = 'none';
+        document.getElementById('noteName').value = 'Untitled';
+        document.getElementById('noteName').style.display = 'inline-block';
     }
     renderNotesList();
 }
@@ -363,6 +446,7 @@ function resetNote() {
     document.getElementById('note').value = '';
     document.getElementById('noteName').value = '';
     document.getElementById('noteName').style.display = 'none';
+    // Remove current note from notesList
     let notes = getNotes();
     if (notes.length > 0) {
         notes.splice(currentNoteIdx, 1);
@@ -379,12 +463,19 @@ function resetNote() {
     showResumeIfNeeded();
 }
 
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+let isPaused = false;
+let stream;
+
 function saveNote() {
     var note = document.getElementById('note').value;
     if (!note) {
         document.getElementById('status').textContent = 'No note to save.';
         return;
     }
+    // Download note as a .txt file locally
     var blob = new Blob([note], { type: 'text/plain' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -397,7 +488,6 @@ function saveNote() {
     document.getElementById('status').textContent = 'Note downloaded!';
 }
 
-// Recording functions
 function updateButtons(recording, paused) {
     document.getElementById('startBtn').style.display = (!recording && !paused) ? 'inline-block' : 'none';
     document.getElementById('pauseBtn').style.display = (recording && !paused) ? 'inline-block' : 'none';
@@ -410,6 +500,7 @@ function startRecording(append) {
         .then(audioStream => {
             stream = audioStream;
             
+            // Use browser-supported audio format (prefer webm, fallback to others)
             let mimeType = '';
             if (MediaRecorder.isTypeSupported('audio/webm')) {
                 mimeType = 'audio/webm';
@@ -429,6 +520,7 @@ function startRecording(append) {
                 }
             };
             mediaRecorder.onstop = () => {
+                // Use the actual recorded MIME type
                 const recordedMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
                 const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
                 console.log('Recording stopped, blob type:', recordedMimeType, 'size:', audioBlob.size);
@@ -459,6 +551,7 @@ function pauseRecording() {
         isRecording = false;
         updateButtons(false, true);
         document.getElementById('status').textContent = 'Recording paused. Transcribing current audio...';
+        // Transcribe current audio chunks for preview
         if (audioChunks.length > 0) {
             const recordedMimeType = mediaRecorder.mimeType || 'audio/webm';
             const currentBlob = new Blob(audioChunks, { type: recordedMimeType });
@@ -471,6 +564,7 @@ function pauseRecording() {
 
 function transcribePreview(audioBlob) {
     const formData = new FormData();
+    // Use appropriate extension based on blob type
     const ext = audioBlob.type.includes('webm') ? 'webm' : 
                 audioBlob.type.includes('ogg') ? 'ogg' : 
                 audioBlob.type.includes('mp4') ? 'mp4' : 'wav';
@@ -482,6 +576,7 @@ function transcribePreview(audioBlob) {
     .then(response => response.json())
     .then(data => {
         if (data.text) {
+            // Append preview transcription to existing note for preview only
             document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
             autoSaveNote();
             document.getElementById('status').innerHTML = 
@@ -513,8 +608,10 @@ function stopRecording() {
     }
 }
 
-function sendAudioToServer(audioBlob, append) {
+// Patch recorder.js's sendAudioToServer to show backend error details and user guidance
+window.sendAudioToServer = function(audioBlob, append) {
     const formData = new FormData();
+    // Use appropriate extension based on blob type
     const ext = audioBlob.type.includes('webm') ? 'webm' : 
                 audioBlob.type.includes('ogg') ? 'ogg' : 
                 audioBlob.type.includes('mp4') ? 'mp4' : 'wav';
@@ -526,6 +623,7 @@ function sendAudioToServer(audioBlob, append) {
     .then(response => response.json())
     .then(data => {
         if (data.text) {
+            // Always append new transcription to the note
             document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
             autoSaveNote();
             document.getElementById('status').innerHTML =
@@ -548,30 +646,35 @@ function sendAudioToServer(audioBlob, append) {
     });
 }
 
-// Placeholder functions
-function resumeAfterReload() {
-    console.log('Resume function called');
-}
-
-function showResumeIfNeeded() {
-    console.log('Checking for resume state...');
-}
-
-// Keyboard shortcuts
+// --- Keyboard Shortcuts ---
 function initKeyboardShortcuts() {
     console.log('Setting up keyboard shortcuts...');
     document.addEventListener('keydown', function(e) {
+        // Always prevent browser default for our shortcuts
         const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
         
+        console.log('Key event:', {
+            key: e.key,
+            ctrlKey: e.ctrlKey,
+            target: e.target.tagName,
+            isInput: isInput
+        });
+        
+        // Ctrl+Alt+N: New note
         if (e.ctrlKey && e.altKey && (e.key === 'n' || e.key === 'N')) {
+            // Prevent browser new tab as early as possible
             e.preventDefault();
             e.stopImmediatePropagation();
+            console.log('Ctrl+Alt+N pressed - creating new note');
             createNewNote();
             return false;
         }
+        // Ctrl+F: Focus search
         if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+            // Prevent browser find as early as possible
             e.preventDefault();
             e.stopImmediatePropagation();
+            console.log('Ctrl+F pressed - focusing search');
             const searchBox = document.getElementById('searchNotes');
             if (searchBox) {
                 searchBox.focus();
@@ -579,9 +682,12 @@ function initKeyboardShortcuts() {
             }
             return false;
         }
+        // Ctrl+R: Start/Stop recording
         if (e.ctrlKey && !e.altKey && (e.key === 'r' || e.key === 'R')) {
+            // Prevent browser reload as early as possible
             e.preventDefault();
             e.stopImmediatePropagation();
+            console.log('Ctrl+R pressed - toggle recording');
             if (isRecording) {
                 stopRecording();
             } else {
@@ -589,55 +695,86 @@ function initKeyboardShortcuts() {
             }
             return false;
         }
-        if (e.ctrlKey && !e.altKey && (e.key === 't' || e.key === 'T')) {
+        // Ctrl+Alt+T: Start/Stop Live Transcribe
+        if (e.ctrlKey && e.altKey && (e.key === 't' || e.key === 'T')) {
             e.preventDefault();
             e.stopImmediatePropagation();
+            console.log('Ctrl+Alt+T pressed - toggle live transcribe');
             const btn = document.getElementById('liveTranscribeBtn');
             if (btn) btn.click();
             return false;
         }
-        if (isInput) return;
-        
+        // Only handle navigation when not in input fields
+        if (isInput) {
+            return;
+        }
+        // Ctrl+ArrowDown: Next note
         if (e.ctrlKey && e.key === 'ArrowDown') {
+            // Prevent browser scroll as early as possible
             e.preventDefault();
             e.stopImmediatePropagation();
+            console.log('Ctrl+Down pressed - next note');
             const notes = getNotes();
             if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
                 selectNote(currentNoteIdx + 1);
             }
             return false;
         }
+        // Ctrl+ArrowUp: Previous note
         if (e.ctrlKey && e.key === 'ArrowUp') {
+            // Prevent browser scroll as early as possible
             e.preventDefault();
             e.stopImmediatePropagation();
+            console.log('Ctrl+Up pressed - previous note');
             const notes = getNotes();
             if (notes.length > 1 && currentNoteIdx > 0) {
                 selectNote(currentNoteIdx - 1);
             }
             return false;
         }
-    }, true);
+    }, true); // Use capture phase to intercept before browser
+    console.log('Keyboard shortcuts setup complete');
 }
 
-// Voice commands setup
+function addShortcutHelp() {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.title =
+            'Shortcuts:\n' +
+            'Ctrl+Alt+N: New note\n' +
+            'Ctrl+F: Search notes\n' +
+            'Ctrl+↑/↓: Prev/Next note\n' +
+            'Ctrl+R: Start/Stop recording\n' +
+            'Ctrl+T: Start/Stop Live Transcribe';
+    }
+}
+
+// --- Voice Command Support ---
+let voiceRecognition;
+let voiceListening = false;
+
 function setupVoiceCommands() {
     console.log('Setting up voice commands...');
     
+    // Check if speech recognition is supported
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
+        console.log('SpeechRecognition not supported in this browser');
         const statusEl = document.getElementById('voiceStatus');
         const micBtn = document.getElementById('micBtn');
+        const micSection = document.getElementById('microphoneSection');
         
         if (statusEl) statusEl.innerHTML = '<span style="color:#dc3545;">Voice commands not available (use Chrome/Edge)</span>';
-        if (micBtn) {
-            micBtn.disabled = true;
-            micBtn.style.opacity = '0.5';
-            micBtn.style.cursor = 'not-allowed';
-        }
+        if (micBtn) micBtn.disabled = true;
+        if (micBtn) micBtn.style.opacity = '0.5';
+        if (micBtn) micBtn.style.cursor = 'not-allowed';
+        if (micSection) micSection.title = 'Voice commands require Chrome or Edge browser';
         return false;
     }
     
+    // Check if we're on HTTPS or localhost (required for speech recognition)
     if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        console.log('Speech recognition requires HTTPS or localhost');
         const statusEl = document.getElementById('voiceStatus');
         if (statusEl) statusEl.textContent = 'Voice requires HTTPS';
         return false;
@@ -650,6 +787,7 @@ function setupVoiceCommands() {
         voiceRecognition.maxAlternatives = 1;
         voiceRecognition.continuous = false;
         
+        console.log('Voice recognition initialized successfully');
         const statusEl = document.getElementById('voiceStatus');
         if (statusEl) statusEl.innerHTML = '<span style="color:#28a745;">Voice commands ready</span>';
         
@@ -675,6 +813,7 @@ function setupVoiceCommands() {
     };
     
     voiceRecognition.onend = function() {
+        console.log('Voice recognition ended');
         voiceListening = false;
         updateMicButton();
         const statusEl = document.getElementById('voiceStatus');
@@ -684,6 +823,7 @@ function setupVoiceCommands() {
     };
     
     voiceRecognition.onerror = function(event) {
+        console.error('Voice recognition error:', event.error, event);
         const statusEl = document.getElementById('voiceStatus');
         voiceListening = false;
         updateMicButton();
@@ -711,6 +851,7 @@ function setupVoiceCommands() {
         
         if (statusEl) statusEl.textContent = errorMsg;
         
+        // Auto-clear error message after 3 seconds
         setTimeout(() => {
             if (statusEl && statusEl.textContent === errorMsg) {
                 statusEl.textContent = 'Click mic to try voice commands';
@@ -771,22 +912,10 @@ function handleVoiceCommand(cmd) {
         if (statusEl) statusEl.textContent = 'Created new note';
     } else if (cmd.startsWith('search ')) {
         const q = cmd.replace('search ', '').trim();
-        // Clear manual search input to avoid conflicts
-        const searchInput = document.getElementById('searchNotes');
-        searchInput.value = '';
-        searchInput.placeholder = '🎤 Voice search active: "' + q + '" (say "clear search" to reset)';
-        searchInput.style.background = '#e8f5e8';
+        document.getElementById('searchNotes').value = q;
         voiceSearchTerm = q;
         renderNotesList();
-        if (statusEl) statusEl.textContent = 'Voice searching for: ' + q;
-    } else if (cmd.includes('clear search') || cmd.includes('show all notes')) {
-        const searchInput = document.getElementById('searchNotes');
-        searchInput.value = '';
-        searchInput.placeholder = 'Search notes...';
-        searchInput.style.background = '';
-        voiceSearchTerm = '';
-        renderNotesList();
-        if (statusEl) statusEl.textContent = 'Showing all notes';
+        if (statusEl) statusEl.textContent = 'Searching for: ' + q;
     } else if (cmd.includes('next note')) {
         const notes = getNotes();
         if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
@@ -798,22 +927,6 @@ function handleVoiceCommand(cmd) {
         if (notes.length > 1 && currentNoteIdx > 0) {
             selectNote(currentNoteIdx - 1);
             if (statusEl) statusEl.textContent = 'Previous note selected';
-        }
-    } else if (cmd.includes('start live')) {
-        const liveBtn = document.getElementById('liveTranscribeBtn');
-        if (liveBtn && liveBtn.textContent.includes('Live Transcribe')) {
-            liveBtn.click();
-            if (statusEl) statusEl.textContent = 'Live transcribe started';
-        } else if (statusEl) {
-            statusEl.textContent = 'Live transcribe already running';
-        }
-    } else if (cmd.includes('stop live')) {
-        const liveBtn = document.getElementById('liveTranscribeBtn');
-        if (liveBtn && liveBtn.textContent.includes('Stop Live')) {
-            liveBtn.click();
-            if (statusEl) statusEl.textContent = 'Live transcribe stopped';
-        } else if (statusEl) {
-            statusEl.textContent = 'Live transcribe not running';
         }
     } else if (cmd.includes('start recording')) {
         if (!isRecording) {
@@ -831,23 +944,39 @@ function handleVoiceCommand(cmd) {
 }
 
 function setupMicrophoneButton() {
+    console.log('Setting up microphone button...');
     const micBtn = document.getElementById('micBtn');
+    console.log('Mic button element:', micBtn);
     
     if (micBtn) {
+        // Only add click listener if voice recognition is supported
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
+            console.log('Voice commands disabled - SpeechRecognition not supported');
             return;
         }
         
         micBtn.addEventListener('click', function(e) {
+            console.log('Mic button clicked!');
             e.preventDefault();
             if (!voiceListening) {
+                console.log('Starting voice command...');
                 startVoiceCommand();
             } else {
+                console.log('Stopping voice command...');
                 stopVoiceCommand();
             }
         });
+        console.log('Microphone button setup complete - event listener added');
+    } else {
+        console.error('ERROR: Microphone button not found! Check HTML structure');
     }
+}
+
+// Placeholder function (was causing initialization to fail)
+function showResumeIfNeeded() {
+    // This function can be used to restore recording state after page reload
+    console.log('Checking for resume state...');
 }
 
 function checkBrowserCompatibility() {
@@ -859,10 +988,11 @@ function checkBrowserCompatibility() {
     const issues = [];
     const features = [];
     
+    // Check MediaRecorder
     if (typeof MediaRecorder === 'undefined') {
         issues.push('❌ Audio recording not supported');
     } else {
-        features.push('✅ Audio recording available');
+        features.push('✅ Audio recording available (use "Start Recording" button)');
         if (MediaRecorder.isTypeSupported('audio/webm')) {
             features.push('✅ WebM format supported');
         } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
@@ -872,35 +1002,48 @@ function checkBrowserCompatibility() {
         }
     }
     
+    // Check SpeechRecognition
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
         issues.push('❌ Voice commands not supported in Firefox');
         issues.push('💡 Voice commands work in Chrome/Edge only');
+        issues.push('✅ But audio recording still works! Use "Start Recording" button');
     } else {
-        features.push('✅ Voice commands available');
+        features.push('✅ Voice commands available (mic button)');
     }
     
-    const chromeMsg = '<br><b>ℹ️ Works perfectly on Chrome browser. For best experience, use Chrome.</b>';
+    // Always show the compatibility info
     if (issues.length > 0) {
-        statusSpan.innerHTML = features.join('<br>') + (features.length > 0 ? '<br>' : '') + issues.join('<br>') + chromeMsg;
+        statusSpan.innerHTML = features.join('<br>') + (features.length > 0 ? '<br>' : '') + issues.join('<br>');
         compatDiv.style.display = 'block';
         compatDiv.style.background = '#fff3cd';
         compatDiv.style.borderLeft = '3px solid #ffc107';
+        compatDiv.style.padding = '0.7em';
     } else {
-        statusSpan.innerHTML = features.join('<br>') + chromeMsg;
+        statusSpan.innerHTML = features.join('<br>');
         compatDiv.style.display = 'block';
         compatDiv.style.background = '#d4edda';
         compatDiv.style.borderLeft = '3px solid #28a745';
+        compatDiv.style.padding = '0.7em';
     }
 }
+
+// --- Live Transcribe for Note Area ---
+let noteLiveRecognition = null;
+let noteLiveListening = false;
 
 function setupLiveTranscribeButton() {
     const btn = document.getElementById('liveTranscribeBtn');
     const status = document.getElementById('liveTranscribeStatus');
     if (!btn || !status) return;
     
+    // Restore Web Speech API for browsers that support it
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+        status.textContent = '';
         btn.onclick = function() {
             if (!noteLiveListening) {
                 startLiveTranscribe();
@@ -909,10 +1052,82 @@ function setupLiveTranscribeButton() {
             }
         };
     } else {
-        // Fallback for browsers without Speech Recognition
-        btn.onclick = function() {
-            status.textContent = 'Live transcribe requires Chrome/Edge browser';
-            setTimeout(() => { status.textContent = ''; }, 3000);
+        // Fallback: Use Vosk backend for offline/live transcription
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.style.cursor = '';
+        status.style.color = '#1976d2';
+        status.textContent = 'Offline transcription (all browsers)';
+        let voskRecording = false;
+        let voskStream = null;
+        let voskMediaRecorder = null;
+        let voskChunks = [];
+        btn.onclick = async function() {
+            const noteArea = document.getElementById('note');
+            if (!voskRecording) {
+                // Start recording
+                try {
+                    voskStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                } catch (e) {
+                    status.style.color = '#b00';
+                    status.textContent = 'Microphone error: ' + e.message;
+                    return;
+                }
+                // Use browser-supported format, then convert on backend
+                let mimeType = '';
+                if (MediaRecorder.isTypeSupported('audio/webm')) {
+                    mimeType = 'audio/webm';
+                } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                    mimeType = 'audio/ogg';
+                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    mimeType = 'audio/mp4';
+                }
+                
+                voskMediaRecorder = new MediaRecorder(voskStream, mimeType ? { mimeType } : undefined);
+                voskChunks = [];
+                voskMediaRecorder.ondataavailable = e => {
+                    if (e.data.size > 0) voskChunks.push(e.data);
+                };
+                voskMediaRecorder.onstop = async () => {
+                    status.textContent = 'Processing...';
+                    const recordedMimeType = voskMediaRecorder.mimeType || mimeType || 'audio/webm';
+                    const audioBlob = new Blob(voskChunks, { type: recordedMimeType });
+                    // Send to regular transcribe endpoint (it handles format conversion)
+                    const formData = new FormData();
+                    const ext = recordedMimeType.includes('webm') ? 'webm' : 
+                               recordedMimeType.includes('ogg') ? 'ogg' : 
+                               recordedMimeType.includes('mp4') ? 'mp4' : 'wav';
+                    formData.append('audio', audioBlob, `note.${ext}`);
+                    try {
+                        const resp = await fetch('/transcribe', { method: 'POST', body: formData });
+                        const data = await resp.json();
+                        if (data.text) {
+                            noteArea.value += (noteArea.value ? '\n' : '') + data.text;
+                            autoSaveNote();
+                        }
+                    } catch (err) {
+                        status.style.color = '#b00';
+                        status.textContent = 'Error: ' + (err.message || err);
+                    }
+                    setTimeout(() => { status.textContent = ''; status.style.color = '#1976d2'; }, 4000);
+                };
+                voskMediaRecorder.start();
+                voskRecording = true;
+                btn.textContent = '⏹️ Stop Live Transcribe';
+                status.textContent = 'Listening (offline)...';
+            } else {
+                // Stop recording
+                if (voskMediaRecorder && voskMediaRecorder.state === 'recording') {
+                    voskMediaRecorder.stop();
+                }
+                if (voskStream) {
+                    voskStream.getTracks().forEach(track => track.stop());
+                }
+                voskRecording = false;
+                btn.textContent = '🎙️ Live Transcribe';
+                status.textContent = 'Stopped';
+                setTimeout(() => { status.textContent = ''; }, 1500);
+            }
         };
     }
 }
@@ -928,23 +1143,29 @@ function startLiveTranscribe() {
     noteLiveRecognition = new SpeechRecognition();
     noteLiveRecognition.lang = 'en-US';
     noteLiveRecognition.interimResults = true;
-    noteLiveRecognition.continuous = false;
+    noteLiveRecognition.continuous = false; // Changed to false for better control
     
     noteLiveListening = true;
     btn.textContent = '⏹️ Stop Live Transcribe';
     status.style.color = '#1976d2';
     status.textContent = 'Listening...';
     
+    let finalTranscript = '';
+    
     noteLiveRecognition.onresult = function(event) {
+        console.log('Speech result received:', event.results.length, 'results');
         let interimTranscript = '';
         
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             const transcript = event.results[i][0].transcript;
+            console.log('Result', i, '- Final:', event.results[i].isFinal, 'Text:', transcript);
             
             if (event.results[i].isFinal) {
+                // Add to note area immediately
                 const currentValue = noteArea.value;
                 const newValue = currentValue + (currentValue && !currentValue.endsWith(' ') ? ' ' : '') + transcript + ' ';
                 noteArea.value = newValue;
+                console.log('Added to note:', transcript);
                 autoSaveNote();
                 status.textContent = 'Listening...';
             } else {
@@ -952,12 +1173,16 @@ function startLiveTranscribe() {
             }
         }
         
+        // Show interim results in status
         if (interimTranscript) {
             status.textContent = 'Hearing: ' + interimTranscript;
         }
     };
     
     noteLiveRecognition.onend = function() {
+        console.log('Speech recognition ended, restarting if still listening...');
+        
+        // Auto-restart if user hasn't clicked stop
         if (noteLiveListening) {
             status.textContent = 'Restarting...';
             setTimeout(() => {
@@ -978,7 +1203,11 @@ function startLiveTranscribe() {
     };
     
     noteLiveRecognition.onerror = function(event) {
+        console.error('Speech recognition error:', event.error);
+        
         if (event.error === 'no-speech') {
+            // No speech detected, just restart
+            console.log('No speech detected, continuing...');
             return;
         }
         
@@ -990,11 +1219,15 @@ function startLiveTranscribe() {
             setTimeout(() => { status.textContent = ''; status.style.color = '#1976d2'; }, 3000);
             return;
         }
+        
+        // For other errors, try to continue
+        console.log('Error occurred, but will try to continue');
     };
     
     try {
         noteLiveRecognition.start();
     } catch (e) {
+        console.error('Failed to start recognition:', e);
         noteLiveListening = false;
         btn.textContent = '🎙️ Live Transcribe';
         status.style.color = '#b00';
@@ -1005,59 +1238,59 @@ function startLiveTranscribe() {
 
 function stopLiveTranscribe() {
     if (noteLiveRecognition && noteLiveListening) {
-        noteLiveListening = false;
+        noteLiveListening = false; // Prevent auto-restart
         noteLiveRecognition.stop();
     }
 }
 
-// Initialize everything when page loads
+// On page load, restore notes and show resume if needed
 window.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing...');
+    console.log('Browser:', navigator.userAgent);
+    console.log('MediaRecorder supported:', typeof MediaRecorder !== 'undefined');
+    console.log('SpeechRecognition supported:', typeof (window.SpeechRecognition || window.webkitSpeechRecognition) !== 'undefined');
     
     try {
         restoreNote();
         showResumeIfNeeded();
         initKeyboardShortcuts();
+        addShortcutHelp();
         setupMicrophoneButton();
         setupVoiceCommands();
         checkBrowserCompatibility();
-        setupLiveTranscribeButton();
+        console.log('Initialization complete');
         
-        // Setup search event listener
-        const searchNotesEl = document.getElementById('searchNotes');
-        const searchModeEl = document.getElementById('searchMode');
-        
-        function updateSearchPlaceholder() {
-            if (searchNotesEl && searchModeEl) {
-                const mode = searchModeEl.value;
-                searchNotesEl.placeholder = mode === 'title' ? 'Search note titles...' : 'Search all content...';
+        // Check for Firefox-specific issues
+        if (navigator.userAgent.toLowerCase().includes('firefox')) {
+            console.log('Firefox detected - checking supported audio formats...');
+            if (typeof MediaRecorder !== 'undefined') {
+                console.log('audio/webm supported:', MediaRecorder.isTypeSupported('audio/webm'));
+                console.log('audio/ogg supported:', MediaRecorder.isTypeSupported('audio/ogg'));
+                console.log('audio/mp4 supported:', MediaRecorder.isTypeSupported('audio/mp4'));
             }
         }
+        setupLiveTranscribeButton();
         
+        // Setup voice search event listener
+        const searchNotesEl = document.getElementById('searchNotes');
         if (searchNotesEl) {
             searchNotesEl.addEventListener('input', function() {
-                // Reset voice search styling when user types manually
-                this.style.background = '';
-                voiceSearchTerm = '';
-                renderNotesList();
+                if (!this.value.trim()) {
+                    voiceSearchTerm = '';
+                    renderNotesList();
+                }
             });
         }
         
-        if (searchModeEl) {
-            searchModeEl.addEventListener('change', function() {
-                updateSearchPlaceholder();
-                renderNotesList();
-            });
-        }
-        
-        // Set initial placeholder
-        updateSearchPlaceholder();
-        
-        console.log('Initialization complete');
+        // Add style for voice search match
+        const style = document.createElement('style');
+        style.innerHTML = `.voice-search-match { background: #ffeaea !important; border-left: 4px solid #e53935 !important; }`;
+        document.head.appendChild(style);
     } catch (e) {
         console.error('Initialization failed:', e);
+        alert('Initialization failed: ' + e.message);
     }
 });
-</script>
+    </script>
 </body>
 </html>
