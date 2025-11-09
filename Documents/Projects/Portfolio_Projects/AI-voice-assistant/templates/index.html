@@ -3,6 +3,8 @@
 <head>
     <script src="{{ url_for('static', filename='html2pdf.bundle.min.js') }}" onerror="this.onerror=null; this.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';"></script>
     <script src="{{ url_for('static', filename='html-docx.js') }}"></script>
+    <link href="{{ url_for('static', filename='quill.snow.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='quill.min.js') }}"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Voice Assistant - Note Taker</title>
@@ -129,19 +131,13 @@
                     <div class="note-box">
                             <h2 id="noteTitle">Your Note:</h2>
                             <input id="noteName" type="text" placeholder="Note title..." style="display:none;" oninput="autoSaveNote()" />
-                            <textarea id="note" rows="5" cols="60" oninput="autoSaveNote()"></textarea>
+                            <!-- Hidden textarea for backward compatibility -->
+                            <textarea id="note" style="display:none;" oninput="autoSaveNote()"></textarea>
+                            <!-- Quill Rich Text Editor -->
+                            <div id="quill-editor" style="min-height: 200px; background: white; border: 1px solid #e0e0e0; border-radius: 4px;">
+                            </div>
                             <div style="margin: 0.5em 0 0.7em 0;">
-                                <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Quick symbols:</span>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('.')">.</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(',')">,</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(':')">:</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(';')">;</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('!')">!</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('?')">?</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('&quot;')">&quot;</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('&#39;')">&#39;</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol('(')">(</button>
-                                <button type="button" class="symbol-btn" onclick="insertSymbol(')')">)</button>
+                                <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Rich text editing enabled - Use toolbar above for formatting</span>
                             </div>
                             <button onclick="saveNote()">Save Note Locally</button>
                             <div style="display:inline-block;position:relative;">
@@ -160,6 +156,73 @@
                 </div>
             </div>
     <script>
+// Quill Rich Text Editor Global Variables
+let quill;
+
+// Initialize Quill Editor
+function initializeQuill() {
+    if (typeof Quill !== 'undefined') {
+        quill = new Quill('#quill-editor', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    ['clean']
+                ]
+            },
+            placeholder: 'Start writing your note...'
+        });
+        
+        // Listen for text changes to auto-save
+        quill.on('text-change', function() {
+            autoSaveNote();
+        });
+        
+        console.log('Quill editor initialized successfully');
+    } else {
+        console.error('Quill library not loaded');
+    }
+}
+
+// Helper functions to work with Quill content
+function getQuillContent() {
+    if (quill) {
+        return quill.root.innerHTML;
+    }
+    return document.getElementById('note').value;
+}
+
+function setQuillContent(html) {
+    if (quill) {
+        quill.root.innerHTML = html;
+    } else {
+        document.getElementById('note').value = html.replace(/<[^>]+>/g, ''); // Strip HTML for fallback
+    }
+}
+
+function getQuillText() {
+    if (quill) {
+        return quill.getText();
+    }
+    return document.getElementById('note').value;
+}
+
+function appendTextToQuill(text) {
+    if (quill) {
+        // Get current length and insert at the end
+        const currentLength = quill.getLength();
+        const prefix = currentLength > 1 ? '\n' : '';
+        quill.insertText(currentLength - 1, prefix + text);
+    } else {
+        // Fallback to textarea
+        const noteArea = document.getElementById('note');
+        noteArea.value += (noteArea.value ? '\n' : '') + text;
+    }
+}
+
 // Export as PDF using html2pdf.js
 function exportPDF() {
     try {
@@ -168,13 +231,16 @@ function exportPDF() {
             return;
         }
         const noteTitle = document.getElementById('noteName').value || 'Untitled';
-        const noteContent = document.getElementById('note').value;
-        if (!noteContent.trim()) {
+        const noteContent = getQuillContent();
+        const plainText = getQuillText();
+        
+        if (!plainText.trim()) {
             alert('Note is empty. Please add some content before exporting.');
             return;
         }
+        
         const element = document.createElement('div');
-        element.innerHTML = `<h2>${noteTitle}</h2><pre style="white-space: pre-wrap; font-family: Arial, sans-serif;">${noteContent}</pre>`;
+        element.innerHTML = `<h2>${noteTitle}</h2><div style="font-family: Arial, sans-serif; line-height: 1.6;">${noteContent}</div>`;
         
         const opt = {
             margin: 0.5,
@@ -203,13 +269,15 @@ function exportWord() {
             return;
         }
         const noteTitle = document.getElementById('noteName').value || 'Untitled';
-        const noteContent = document.getElementById('note').value;
-        if (!noteContent.trim()) {
+        const noteContent = getQuillContent();
+        const plainText = getQuillText();
+        
+        if (!plainText.trim()) {
             alert('Note is empty. Please add some content before exporting.');
             return;
         }
         
-        const contentHtml = `<h1>${noteTitle}</h1><p>${noteContent.replace(/\n/g, '<br>')}</p>`;
+        const contentHtml = `<h1>${noteTitle}</h1><div>${noteContent}</div>`;
         const converted = htmlDocx.asBlob(contentHtml);
         
         const a = document.createElement('a');
@@ -230,8 +298,8 @@ function exportWord() {
 // Send via Email (mailto link)  
 function exportEmail() {
     const noteTitle = document.getElementById('noteName').value || 'Untitled';
-    const noteContent = document.getElementById('note').value;
-    const mailto = `mailto:?subject=${encodeURIComponent(noteTitle)}&body=${encodeURIComponent(noteContent)}`;
+    const plainText = getQuillText();
+    const mailto = `mailto:?subject=${encodeURIComponent(noteTitle)}&body=${encodeURIComponent(plainText)}`;
     window.location.href = mailto;
 }
 
@@ -372,11 +440,16 @@ function selectNote(idx) {
     const notes = getNotes();
     if (notes[idx]) {
         currentNoteIdx = idx;
+        
+        // Load content into Quill editor
+        setQuillContent(notes[idx].content);
+        
+        // Also update hidden textarea for compatibility
         document.getElementById('note').value = notes[idx].content;
+        
         document.getElementById('noteName').value = notes[idx].title;
         document.getElementById('noteName').style.display = 'inline-block';
         document.getElementById('noteTitle').textContent = 'Your Note:';
-        autoSaveNote();
         renderNotesList();
     }
 }
@@ -409,9 +482,14 @@ function autoSaveNote() {
     // Save current note content and title to notesList
     const notes = getNotes();
     if (notes[currentNoteIdx]) {
-        notes[currentNoteIdx].content = document.getElementById('note').value;
+        // Get content from Quill editor
+        notes[currentNoteIdx].content = getQuillContent();
         notes[currentNoteIdx].title = document.getElementById('noteName').value || 'Untitled';
         notes[currentNoteIdx].timestamp = new Date().toLocaleString();
+        
+        // Also sync to hidden textarea for compatibility
+        document.getElementById('note').value = getQuillText();
+        
         saveNotes(notes);
         renderNotesList();
     }
@@ -422,6 +500,10 @@ function restoreNote() {
     let notes = getNotes();
     if (notes.length > 0) {
         currentNoteIdx = 0;
+        
+        // Load content into Quill editor
+        setQuillContent(notes[0].content);
+        
         document.getElementById('note').value = notes[0].content;
         document.getElementById('noteName').value = notes[0].title;
         document.getElementById('noteName').style.display = 'inline-block';
@@ -435,6 +517,10 @@ function restoreNote() {
         notes.push(defaultNote);
         saveNotes(notes);
         currentNoteIdx = 0;
+        
+        // Initialize empty Quill editor
+        setQuillContent('');
+        
         document.getElementById('note').value = '';
         document.getElementById('noteName').value = 'Untitled';
         document.getElementById('noteName').style.display = 'inline-block';
@@ -577,7 +663,7 @@ function transcribePreview(audioBlob) {
     .then(data => {
         if (data.text) {
             // Append preview transcription to existing note for preview only
-            document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
+            appendTextToQuill(data.text);
             autoSaveNote();
             document.getElementById('status').innerHTML = 
                 '<b>Recording paused.</b> Preview transcription appended above. Click Continue to add more or Stop to finish.';
@@ -624,7 +710,7 @@ window.sendAudioToServer = function(audioBlob, append) {
     .then(data => {
         if (data.text) {
             // Always append new transcription to the note
-            document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
+            appendTextToQuill(data.text);
             autoSaveNote();
             document.getElementById('status').innerHTML =
                 '<b>Transcription complete.</b> You can also correct the note manually below if you see any error.';
@@ -1102,7 +1188,7 @@ function setupLiveTranscribeButton() {
                         const resp = await fetch('/transcribe', { method: 'POST', body: formData });
                         const data = await resp.json();
                         if (data.text) {
-                            noteArea.value += (noteArea.value ? '\n' : '') + data.text;
+                            appendTextToQuill(data.text);
                             autoSaveNote();
                         }
                     } catch (err) {
@@ -1251,6 +1337,9 @@ window.addEventListener('DOMContentLoaded', function() {
     console.log('SpeechRecognition supported:', typeof (window.SpeechRecognition || window.webkitSpeechRecognition) !== 'undefined');
     
     try {
+        // Initialize Quill Rich Text Editor first
+        initializeQuill();
+        
         restoreNote();
         showResumeIfNeeded();
         initKeyboardShortcuts();

@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="/static/quill.snow.css" rel="stylesheet">
+    <script src="/static/quill.min.js"></script>
+    <script src="/static/html2pdf.bundle.min.js"></script>
+    <script src="/static/html-docx.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Assistant - Note Taker</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <style>
+        .transcription-word-lowconf {
+            background: #e3f0fb;
+            border-bottom: 2px dashed #1976d2;
+            border-radius: 3px;
+            padding: 0 2px;
+            margin: 0 1px;
+            cursor: help;
+            transition: background 0.2s;
+        }
+        .symbol-btn {
+            background: #f4f6fa;
+</style>
+
+<!-- Main JavaScript logic block moved to end of body -->
+<script>
+// Initialize Quill editor
+let quill;
+window.addEventListener('DOMContentLoaded', function() {
+    quill = new Quill('#quillEditor', {
+        theme: 'snow',
+        placeholder: 'Type your note here... (supports bold, italics, bullets, headings)',
+        modules: {
+            toolbar: [
+                [{ header: [1, 2, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['clean']
+            ]
+        }
+    });
+    // Load first note content into Quill
+    if (getNotes()[0] && getNotes()[0].content) {
+        quill.root.innerHTML = getNotes()[0].content;
+    }
+    quill.on('text-change', function() { autoSaveNote(); });
+});
+// ...existing code from your main JS logic (all functions and event handlers, as before)...
+</script>
+<script>
+// Initialize Quill editor
+let quill;
+window.addEventListener('DOMContentLoaded', function() {
+    quill = new Quill('#quillEditor', {
+        theme: 'snow',
+        placeholder: 'Type your note here... (supports bold, italics, bullets, headings)',
+        modules: {
+            toolbar: [
+                [{ header: [1, 2, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['clean']
+            ]
+        }
+    });
+    // Load first note content into Quill
+    if (getNotes()[0] && getNotes()[0].content) {
+        quill.root.innerHTML = getNotes()[0].content;
+    }
+    quill.on('text-change', function() { autoSaveNote(); });
+});
+// Export as PDF using html2pdf.js
+function exportPDF() {
+    const noteTitle = document.getElementById('noteName').value || 'Untitled';
+    const noteContent = quill.root.innerHTML;
+    const element = document.createElement('div');
+    element.innerHTML = `<h2>${noteTitle}</h2>${noteContent}`;
+    html2pdf().from(element).set({margin:0.5,filename: noteTitle + '.pdf',html2canvas:{scale:2}}).save();
+}
+
+// Export as Word using html-docx-js
+function exportWord() {
+    const noteTitle = document.getElementById('noteName').value || 'Untitled';
+    const noteContent = quill.root.innerHTML;
+    const contentHtml = `<h2>${noteTitle}</h2>${noteContent}`;
+    const converted = window.htmlDocx.asBlob(contentHtml);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(converted);
+    a.download = noteTitle + '.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// Send via Email (mailto link)
+function exportEmail() {
+    const noteTitle = document.getElementById('noteName').value || 'Untitled';
+    const noteContent = quill.getText();
+    const mailto = `mailto:?subject=${encodeURIComponent(noteTitle)}&body=${encodeURIComponent(noteContent)}`;
+    window.location.href = mailto;
+}
+// Global variables
+let voiceSearchTerm = '';
+let currentNoteIdx = 0;
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+let isPaused = false;
+let stream;
+let voiceRecognition;
+let voiceListening = false;
+let noteLiveRecognition = null;
+let noteLiveListening = false;
+
+// Insert symbol at cursor position in note textarea
+function insertSymbol(symbol) {
+    const textarea = document.getElementById('note');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = textarea.value.substring(0, start);
+    const after = textarea.value.substring(end);
+    textarea.value = before + symbol + after;
+    textarea.selectionStart = textarea.selectionEnd = start + symbol.length;
+    textarea.focus();
+    autoSaveNote();
+}
+
+// Notes management functions
+function getNotes() {
+    const notes = localStorage.getItem('notesList');
+    let parsed = notes ? JSON.parse(notes) : [];
+    // Always ensure at least one untitled note exists
+    if (!parsed.length) {
+        parsed = [{
+            title: 'Untitled',
+            content: '',
+            timestamp: new Date().toLocaleString()
+        }];
+        localStorage.setItem('notesList', JSON.stringify(parsed));
+    }
+    return parsed;
+}
+
+function saveNotes(notes) {
+    localStorage.setItem('notesList', JSON.stringify(notes));
+}
+
+function renderNotesList() {
+    console.log('Rendering notes list');
+    let notes = getNotes();
+    const searchEl = document.getElementById('searchNotes');
+    const dateEl = document.getElementById('dateFilter');
+
+    // Apply search filter
+    let search = '';
+    if (searchEl && searchEl.value.trim()) {
+        search = searchEl.value.toLowerCase().trim();
+        const searchMode = document.getElementById('searchMode').value;
+        
+        notes = notes.filter(n => {
+            if (searchMode === 'title') {
+                // Search in title only
+                return n.title && n.title.toLowerCase().includes(search);
+            } else {
+                // Search in both title and content
+                const titleMatch = n.title && n.title.toLowerCase().includes(search);
+                const contentMatch = n.content && n.content.toLowerCase().includes(search);
+                return titleMatch || contentMatch;
+            }
+        });
+    }
+
+    // Apply date filter
+    if (dateEl && dateEl.value) {
+        const date = dateEl.value;
+        notes = notes.filter(n => n.timestamp && n.timestamp.includes(date));
+    }
+
+    // Voice search handling
+    let allNotes = getNotes();
+    let displayNotes = notes;
+    let voiceSearch = voiceSearchTerm && voiceSearchTerm.trim() !== '';
+    if (voiceSearch && !search) {
+        displayNotes = allNotes;
+        const term = voiceSearchTerm.toLowerCase().trim();
+        displayNotes = [...displayNotes].sort((a, b) => {
+            const aMatch = a.title && a.title.toLowerCase() === term;
+            const bMatch = b.title && b.title.toLowerCase() === term;
+            if (aMatch === bMatch) return 0;
+            return aMatch ? -1 : 1;
+        });
+    }
+
+    const ul = document.getElementById('notesList');
+    if (!ul) return;
+
+    ul.innerHTML = '';
+    displayNotes.forEach((note, idx) => {
+        const realIdx = allNotes.findIndex(n => n.timestamp === note.timestamp && n.title === note.title);
+        const li = document.createElement('li');
+        let match = false;
+        if (voiceSearch && !search) {
+            const term = voiceSearchTerm.toLowerCase().trim();
+            match = note.title && note.title.toLowerCase() === term;
+        }
+        li.className = 'note-list-item' + (realIdx === currentNoteIdx ? ' selected' : '') + (match ? ' voice-search-match' : '');
+        li.onclick = function(e) { if (e.target.tagName !== 'BUTTON') selectNote(realIdx); };
+        li.innerHTML = `<span class='note-title'>${note.title || 'Untitled'}</span><span class='note-timestamp'>${note.timestamp}</span><button class='delete-btn' onclick='event.stopPropagation();deleteNote(${realIdx})' title='Delete note'>🗑️</button>`;
+        ul.appendChild(li);
+    });
+}
+
+function createNewNote() {
+    // Save current note if it has content before creating new
+    const noteName = document.getElementById('noteName');
+    let notes = getNotes();
+    if (notes.length && (quill.getText().trim() || noteName.value.trim())) {
+        notes[0].content = quill.root.innerHTML;
+        notes[0].title = noteName.value || 'Untitled';
+        notes[0].timestamp = new Date().toLocaleString();
+        saveNotes(notes);
+    }
+    const now = new Date();
+    const note = {
+        title: 'Untitled',
+        content: '',
+        timestamp: now.toLocaleString()
+    };
+    notes.unshift(note);
+    saveNotes(notes);
+    selectNote(0);
+    renderNotesList();
+}
+
+function selectNote(idx) {
+    const notes = getNotes();
+    if (notes[idx]) {
+        currentNoteIdx = idx;
+        quill.root.innerHTML = notes[idx].content || '';
+        document.getElementById('noteName').value = notes[idx].title;
+        document.getElementById('noteName').style.display = 'inline-block';
+        document.getElementById('noteTitle').textContent = 'Your Note:';
+        autoSaveNote();
+        renderNotesList();
+    }
+}
+
+function deleteNote(idx) {
+    let notes = getNotes();
+    if (notes.length > 0) {
+        notes.splice(idx, 1);
+        saveNotes(notes);
+        if (currentNoteIdx === idx) {
+            currentNoteIdx = 0;
+        } else if (currentNoteIdx > idx) {
+            currentNoteIdx--;
+        }
+        if (notes.length > 0) {
+            selectNote(currentNoteIdx);
+        } else {
+            document.getElementById('note').value = '';
+            document.getElementById('noteName').value = '';
+            document.getElementById('noteName').style.display = 'none';
+        }
+        renderNotesList();
+    }
+}
+
+function autoSaveNote() {
+    const notes = getNotes();
+    if (notes[currentNoteIdx]) {
+        notes[currentNoteIdx].content = quill.root.innerHTML;
+        notes[currentNoteIdx].title = document.getElementById('noteName').value || 'Untitled';
+        notes[currentNoteIdx].timestamp = new Date().toLocaleString();
+        saveNotes(notes);
+        renderNotesList();
+    }
+}
+
+function restoreNote() {
+    const notes = getNotes();
+    if (notes.length > 0) {
+        currentNoteIdx = 0;
+        document.getElementById('note').value = notes[0].content;
+        document.getElementById('noteName').value = notes[0].title;
+        document.getElementById('noteName').style.display = 'inline-block';
+    } else {
+        document.getElementById('note').value = '';
+        document.getElementById('noteName').value = '';
+        document.getElementById('noteName').style.display = 'none';
+    }
+    renderNotesList();
+}
+
+function resetNote() {
+    document.getElementById('note').value = '';
+    document.getElementById('noteName').value = '';
+    document.getElementById('noteName').style.display = 'none';
+    let notes = getNotes();
+    if (notes.length > 0) {
+        notes.splice(currentNoteIdx, 1);
+        saveNotes(notes);
+        if (notes.length > 0) {
+            currentNoteIdx = 0;
+            selectNote(0);
+        } else {
+            renderNotesList();
+        }
+    }
+    document.getElementById('status').textContent = '';
+    updateButtons(false, false);
+    showResumeIfNeeded();
+}
+
+function saveNote() {
+    var note = document.getElementById('note').value;
+    if (!note) {
+        document.getElementById('status').textContent = 'No note to save.';
+        return;
+    }
+    var blob = new Blob([note], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'note.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    document.getElementById('status').textContent = 'Note downloaded!';
+}
+
+// Recording functions
+function updateButtons(recording, paused) {
+    document.getElementById('startBtn').style.display = (!recording && !paused) ? 'inline-block' : 'none';
+    document.getElementById('pauseBtn').style.display = (recording && !paused) ? 'inline-block' : 'none';
+    document.getElementById('continueBtn').style.display = paused ? 'inline-block' : 'none';
+    document.getElementById('stopBtn').style.display = (recording || paused) ? 'inline-block' : 'none';
+}
+
+function startRecording(append) {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(audioStream => {
+            stream = audioStream;
+            
+            let mimeType = '';
+            if (MediaRecorder.isTypeSupported('audio/webm')) {
+                mimeType = 'audio/webm';
+            } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                mimeType = 'audio/ogg';
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                mimeType = 'audio/mp4';
+            }
+            
+            console.log('Using MIME type:', mimeType || 'default');
+            mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+            mediaRecorder.onstop = () => {
+                const recordedMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+                const audioBlob = new Blob(audioChunks, { type: recordedMimeType });
+                console.log('Recording stopped, blob type:', recordedMimeType, 'size:', audioBlob.size);
+                sendAudioToServer(audioBlob, append);
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                isRecording = false;
+                isPaused = false;
+                updateButtons(false, false);
+                showResumeIfNeeded();
+            };
+            mediaRecorder.start(1000);
+            isRecording = true;
+            isPaused = false;
+            updateButtons(true, false);
+            document.getElementById('status').textContent = 'Recording...';
+        })
+        .catch(err => {
+            document.getElementById('status').textContent = 'Error accessing microphone: ' + err.message;
+        });
+}
+
+function pauseRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.pause();
+        isPaused = true;
+        isRecording = false;
+        updateButtons(false, true);
+        document.getElementById('status').textContent = 'Recording paused. Transcribing current audio...';
+        if (audioChunks.length > 0) {
+            const recordedMimeType = mediaRecorder.mimeType || 'audio/webm';
+            const currentBlob = new Blob(audioChunks, { type: recordedMimeType });
+            transcribePreview(currentBlob);
+        } else {
+            document.getElementById('status').textContent = 'Recording paused. No audio to transcribe yet. Click Continue to resume.';
+        }
+    }
+}
+
+function transcribePreview(audioBlob) {
+    const formData = new FormData();
+    const ext = audioBlob.type.includes('webm') ? 'webm' : 
+                audioBlob.type.includes('ogg') ? 'ogg' : 
+                audioBlob.type.includes('mp4') ? 'mp4' : 'wav';
+    formData.append('audio', audioBlob, `preview.${ext}`);
+    fetch('/transcribe', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.text) {
+            document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
+            autoSaveNote();
+            document.getElementById('status').innerHTML = 
+                '<b>Recording paused.</b> Preview transcription appended above. Click Continue to add more or Stop to finish.';
+        } else {
+            document.getElementById('status').innerHTML = 
+                '<b>Recording paused.</b> Could not transcribe current audio. Click Continue to add more or Stop to finish.';
+        }
+    })
+    .catch(err => {
+        document.getElementById('status').textContent = 'Recording paused. Transcription preview failed. Click Continue to resume.';
+    });
+}
+
+function continueRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'paused') {
+        mediaRecorder.resume();
+        isRecording = true;
+        isPaused = false;
+        updateButtons(true, false);
+        document.getElementById('status').textContent = 'Recording resumed...';
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused')) {
+        mediaRecorder.stop();
+        document.getElementById('status').textContent = 'Processing...';
+    }
+}
+
+function sendAudioToServer(audioBlob, append) {
+    const formData = new FormData();
+    const ext = audioBlob.type.includes('webm') ? 'webm' : 
+                audioBlob.type.includes('ogg') ? 'ogg' : 
+                audioBlob.type.includes('mp4') ? 'mp4' : 'wav';
+    formData.append('audio', audioBlob, `note.${ext}`);
+    fetch('/transcribe', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.text) {
+            // If confidence data is available, build highlighted HTML
+            if (data.words && Array.isArray(data.words) && data.words.length > 0) {
+                let html = '';
+                data.words.forEach(w => {
+                    if (typeof w.conf !== 'undefined' && w.conf < 0.85) {
+                        html += `<span class="transcription-word-lowconf" title="Low confidence (${(w.conf*100).toFixed(0)}%)">${w.word}</span> `;
+                    } else {
+                        html += `${w.word} `;
+                    }
+                });
+                document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
+                autoSaveNote();
+                document.getElementById('status').innerHTML =
+                    '<b>Transcription complete.</b> <span style="color:#1976d2;">Low-confidence words are highlighted below:</span><br><div style="margin:0.5em 0 0.5em 0;line-height:1.7;">' + html + '</div>';
+            } else {
+                document.getElementById('note').value += (document.getElementById('note').value ? '\n' : '') + data.text;
+                autoSaveNote();
+                document.getElementById('status').innerHTML =
+                    '<b>Transcription complete.</b> You can also correct the note manually below if you see any error.';
+            }
+            renderNotesList();
+        } else {
+            document.getElementById('status').innerHTML =
+                '<b>Transcription failed. Try again.</b><br>' +
+                'You can also correct the note manually below.<br>' +
+                'Tips: <ul style="margin:0 0 0 1em;padding:0;">' +
+                '<li>Wear earphones and keep the mic close to your mouth.</li>' +
+                '<li>Speak clearly and avoid background noise.</li>' +
+                '<li>Record at least 2-3 seconds of audio.</li>' +
+                '<li>Check your microphone permissions.</li>' +
+                '</ul>';
+        }
+    })
+    .catch(err => {
+        document.getElementById('status').textContent = 'Transcription error: ' + err;
+    });
+}
+
+// Placeholder functions
+function resumeAfterReload() {
+    console.log('Resume function called');
+}
+
+function showResumeIfNeeded() {
+    console.log('Checking for resume state...');
+}
+
+// Keyboard shortcuts
+function initKeyboardShortcuts() {
+    console.log('Setting up keyboard shortcuts...');
+    document.addEventListener('keydown', function(e) {
+        const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+        
+        if (e.ctrlKey && e.altKey && (e.key === 'n' || e.key === 'N')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            createNewNote();
+            return false;
+        }
+        if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const searchBox = document.getElementById('searchNotes');
+            if (searchBox) {
+                searchBox.focus();
+                searchBox.select();
+            }
+            return false;
+        }
+        if (e.ctrlKey && !e.altKey && (e.key === 'r' || e.key === 'R')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+            return false;
+        }
+        if (e.ctrlKey && !e.altKey && (e.key === 't' || e.key === 'T')) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const btn = document.getElementById('liveTranscribeBtn');
+            if (btn) btn.click();
+            return false;
+        }
+        if (isInput) return;
+        
+        if (e.ctrlKey && e.key === 'ArrowDown') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const notes = getNotes();
+            if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
+                selectNote(currentNoteIdx + 1);
+            }
+            return false;
+        }
+        if (e.ctrlKey && e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            const notes = getNotes();
+            if (notes.length > 1 && currentNoteIdx > 0) {
+                selectNote(currentNoteIdx - 1);
+            }
+            return false;
+        }
+    }, true);
+}
+
+// Voice commands setup
+function setupVoiceCommands() {
+    console.log('Setting up voice commands...');
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        const statusEl = document.getElementById('voiceStatus');
+        const micBtn = document.getElementById('micBtn');
+        
+        if (statusEl) statusEl.innerHTML = '<span style="color:#dc3545;">Voice commands not available (use Chrome/Edge)</span>';
+        if (micBtn) {
+            micBtn.disabled = true;
+            micBtn.style.opacity = '0.5';
+            micBtn.style.cursor = 'not-allowed';
+        }
+        return false;
+    }
+    
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Voice requires HTTPS';
+        return false;
+    }
+    
+    try {
+        voiceRecognition = new SpeechRecognition();
+        voiceRecognition.lang = 'en-US';
+        voiceRecognition.interimResults = false;
+        voiceRecognition.maxAlternatives = 1;
+        voiceRecognition.continuous = false;
+        
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.innerHTML = '<span style="color:#28a745;">Voice commands ready</span>';
+        
+    } catch (e) {
+        console.error('Failed to initialize voice recognition:', e);
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Voice setup failed';
+        return false;
+    }
+    
+    voiceRecognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript.trim().toLowerCase();
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Heard: ' + transcript;
+        handleVoiceCommand(transcript);
+        voiceListening = false;
+        updateMicButton();
+    };
+    
+    voiceRecognition.onstart = function() {
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Listening... (speak now)';
+    };
+    
+    voiceRecognition.onend = function() {
+        voiceListening = false;
+        updateMicButton();
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl && statusEl.textContent.includes('Listening')) {
+            statusEl.textContent = 'Ready for voice commands';
+        }
+    };
+    
+    voiceRecognition.onerror = function(event) {
+        const statusEl = document.getElementById('voiceStatus');
+        voiceListening = false;
+        updateMicButton();
+        
+        let errorMsg = 'Voice command failed';
+        switch(event.error) {
+            case 'network':
+                errorMsg = 'Network error - check internet connection';
+                break;
+            case 'not-allowed':
+                errorMsg = 'Microphone permission denied';
+                break;
+            case 'no-speech':
+                errorMsg = 'No speech detected - try again';
+                break;
+            case 'audio-capture':
+                errorMsg = 'Microphone not available';
+                break;
+            case 'service-not-allowed':
+                errorMsg = 'Speech service blocked by browser';
+                break;
+            default:
+                errorMsg = 'Voice error: ' + event.error;
+        }
+        
+        if (statusEl) statusEl.textContent = errorMsg;
+        
+        setTimeout(() => {
+            if (statusEl && statusEl.textContent === errorMsg) {
+                statusEl.textContent = 'Click mic to try voice commands';
+            }
+        }, 3000);
+    };
+    
+    return true;
+}
+
+function startVoiceCommand() {
+    if (!voiceRecognition) {
+        if (!setupVoiceCommands()) {
+            const statusEl = document.getElementById('voiceStatus');
+            if (statusEl) statusEl.textContent = 'Voice commands not supported';
+            return;
+        }
+    }
+    
+    try {
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Requesting microphone...';
+        voiceListening = true;
+        updateMicButton();
+        voiceRecognition.start();
+    } catch (e) {
+        console.error('Voice recognition start error:', e);
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Microphone access denied';
+        voiceListening = false;
+        updateMicButton();
+    }
+}
+
+function stopVoiceCommand() {
+    if (voiceRecognition && voiceListening) {
+        voiceRecognition.stop();
+        voiceListening = false;
+        updateMicButton();
+        const statusEl = document.getElementById('voiceStatus');
+        if (statusEl) statusEl.textContent = 'Stopped listening';
+    }
+}
+
+function updateMicButton() {
+    const micBtn = document.getElementById('micBtn');
+    if (micBtn) {
+        micBtn.style.background = voiceListening ? '#1976d2' : '#f4f6fa';
+        micBtn.style.color = voiceListening ? '#fff' : '#1976d2';
+    }
+}
+
+function handleVoiceCommand(cmd) {
+    const statusEl = document.getElementById('voiceStatus');
+    
+    if (cmd.includes('new note')) {
+        createNewNote();
+        if (statusEl) statusEl.textContent = 'Created new note';
+    } else if (cmd.startsWith('search ')) {
+        const q = cmd.replace('search ', '').trim();
+        // Clear manual search input to avoid conflicts
+        const searchInput = document.getElementById('searchNotes');
+        searchInput.value = '';
+        searchInput.placeholder = '🎤 Voice search active: "' + q + '" (say "clear search" to reset)';
+        searchInput.style.background = '#e8f5e8';
+        voiceSearchTerm = q;
+        renderNotesList();
+        if (statusEl) statusEl.textContent = 'Voice searching for: ' + q;
+    } else if (cmd.includes('clear search') || cmd.includes('show all notes')) {
+        const searchInput = document.getElementById('searchNotes');
+        searchInput.value = '';
+        searchInput.placeholder = 'Search notes...';
+        searchInput.style.background = '';
+        voiceSearchTerm = '';
+        renderNotesList();
+        if (statusEl) statusEl.textContent = 'Showing all notes';
+    } else if (cmd.includes('next note')) {
+        const notes = getNotes();
+        if (notes.length > 1 && currentNoteIdx < notes.length - 1) {
+            selectNote(currentNoteIdx + 1);
+            if (statusEl) statusEl.textContent = 'Next note selected';
+        }
+    } else if (cmd.includes('previous note')) {
+        const notes = getNotes();
+        if (notes.length > 1 && currentNoteIdx > 0) {
+            selectNote(currentNoteIdx - 1);
+            if (statusEl) statusEl.textContent = 'Previous note selected';
+        }
+    } else if (cmd.includes('start live')) {
+        const liveBtn = document.getElementById('liveTranscribeBtn');
+        if (liveBtn && liveBtn.textContent.includes('Live Transcribe')) {
+            liveBtn.click();
+            if (statusEl) statusEl.textContent = 'Live transcribe started';
+        } else if (statusEl) {
+            statusEl.textContent = 'Live transcribe already running';
+        }
+    } else if (cmd.includes('stop live')) {
+        const liveBtn = document.getElementById('liveTranscribeBtn');
+        if (liveBtn && liveBtn.textContent.includes('Stop Live')) {
+            liveBtn.click();
+            if (statusEl) statusEl.textContent = 'Live transcribe stopped';
+        } else if (statusEl) {
+            statusEl.textContent = 'Live transcribe not running';
+        }
+    } else if (cmd.includes('start recording')) {
+        if (!isRecording) {
+            startRecording();
+            if (statusEl) statusEl.textContent = 'Recording started';
+        }
+    } else if (cmd.includes('stop recording')) {
+        if (isRecording) {
+            stopRecording();
+            if (statusEl) statusEl.textContent = 'Recording stopped';
+        }
+    } else {
+        if (statusEl) statusEl.textContent = 'Unknown command: ' + cmd;
+    }
+}
+
+function setupMicrophoneButton() {
+    const micBtn = document.getElementById('micBtn');
+    
+    if (micBtn) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            return;
+        }
+        
+        micBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (!voiceListening) {
+                startVoiceCommand();
+            } else {
+                stopVoiceCommand();
+            }
+        });
+    }
+}
+
+function checkBrowserCompatibility() {
+    const compatDiv = document.getElementById('browserCompatibility');
+    const statusSpan = document.getElementById('compatStatus');
+    
+    if (!compatDiv || !statusSpan) return;
+    
+    const issues = [];
+    const features = [];
+    
+    if (typeof MediaRecorder === 'undefined') {
+        issues.push('❌ Audio recording not supported');
+    } else {
+        features.push('✅ Audio recording available');
+        if (MediaRecorder.isTypeSupported('audio/webm')) {
+            features.push('✅ WebM format supported');
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+            features.push('✅ OGG format supported');
+        } else {
+            issues.push('⚠️ Limited audio format support');
+        }
+    }
+    
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        issues.push('❌ Voice commands not supported in Firefox');
+        issues.push('💡 Voice commands work in Chrome/Edge only');
+    } else {
+        features.push('✅ Voice commands available');
+    }
+    
+    const chromeMsg = '<br><b>ℹ️ Works perfectly on Chrome browser. For best experience, use Chrome.</b>';
+    if (issues.length > 0) {
+        statusSpan.innerHTML = features.join('<br>') + (features.length > 0 ? '<br>' : '') + issues.join('<br>') + chromeMsg;
+        compatDiv.style.display = 'block';
+        compatDiv.style.background = '#fff3cd';
+        compatDiv.style.borderLeft = '3px solid #ffc107';
+    } else {
+        statusSpan.innerHTML = features.join('<br>') + chromeMsg;
+        compatDiv.style.display = 'block';
+        compatDiv.style.background = '#d4edda';
+        compatDiv.style.borderLeft = '3px solid #28a745';
+    }
+}
+
+function setupLiveTranscribeButton() {
+    const btn = document.getElementById('liveTranscribeBtn');
+    const status = document.getElementById('liveTranscribeStatus');
+    if (!btn || !status) return;
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+        btn.onclick = function() {
+            if (!noteLiveListening) {
+                startLiveTranscribe();
+            } else {
+                stopLiveTranscribe();
+            }
+        };
+    } else {
+        // Fallback for browsers without Speech Recognition
+        btn.onclick = function() {
+            status.textContent = 'Live transcribe requires Chrome/Edge browser';
+            setTimeout(() => { status.textContent = ''; }, 3000);
+        };
+    }
+}
+
+function startLiveTranscribe() {
+    const btn = document.getElementById('liveTranscribeBtn');
+    const status = document.getElementById('liveTranscribeStatus');
+    const noteArea = document.getElementById('note');
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition || !noteArea) return;
+    
+    noteLiveRecognition = new SpeechRecognition();
+    noteLiveRecognition.lang = 'en-US';
+    noteLiveRecognition.interimResults = true;
+    noteLiveRecognition.continuous = false;
+    
+    noteLiveListening = true;
+    btn.textContent = '⏹️ Stop Live Transcribe';
+    status.style.color = '#1976d2';
+    status.textContent = 'Listening...';
+    
+    noteLiveRecognition.onresult = function(event) {
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
+            
+            if (event.results[i].isFinal) {
+                const currentValue = noteArea.value;
+                const newValue = currentValue + (currentValue && !currentValue.endsWith(' ') ? ' ' : '') + transcript + ' ';
+                noteArea.value = newValue;
+                autoSaveNote();
+                status.textContent = 'Listening...';
+            } else {
+                interimTranscript += transcript;
+            }
+        }
+        
+        if (interimTranscript) {
+            status.textContent = 'Hearing: ' + interimTranscript;
+        }
+    };
+    
+    noteLiveRecognition.onend = function() {
+        if (noteLiveListening) {
+            status.textContent = 'Restarting...';
+            setTimeout(() => {
+                if (noteLiveListening) {
+                    try {
+                        noteLiveRecognition.start();
+                        status.textContent = 'Listening...';
+                    } catch (e) {
+                        console.log('Restart failed:', e);
+                    }
+                }
+            }, 100);
+        } else {
+            btn.textContent = '🎙️ Live Transcribe';
+            status.textContent = 'Stopped';
+            setTimeout(() => { status.textContent = ''; }, 1500);
+        }
+    };
+    
+    noteLiveRecognition.onerror = function(event) {
+        if (event.error === 'no-speech') {
+            return;
+        }
+        
+        if (event.error === 'network') {
+            noteLiveListening = false;
+            btn.textContent = '🎙️ Live Transcribe';
+            status.style.color = '#b00';
+            status.textContent = 'Network error - check internet connection';
+            setTimeout(() => { status.textContent = ''; status.style.color = '#1976d2'; }, 3000);
+            return;
+        }
+    };
+    
+    try {
+        noteLiveRecognition.start();
+    } catch (e) {
+        noteLiveListening = false;
+        btn.textContent = '🎙️ Live Transcribe';
+        status.style.color = '#b00';
+        status.textContent = 'Failed to start: ' + e.message;
+        setTimeout(() => { status.textContent = ''; status.style.color = '#1976d2'; }, 3000);
+    }
+}
+
+function stopLiveTranscribe() {
+    if (noteLiveRecognition && noteLiveListening) {
+        noteLiveListening = false;
+        noteLiveRecognition.stop();
+    }
+}
+
+// Initialize everything when page loads
+window.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing...');
+    
+    try {
+        restoreNote();
+        showResumeIfNeeded();
+        initKeyboardShortcuts();
+        setupMicrophoneButton();
+        setupVoiceCommands();
+        checkBrowserCompatibility();
+        setupLiveTranscribeButton();
+        
+        // Setup search event listener
+        const searchNotesEl = document.getElementById('searchNotes');
+        const searchModeEl = document.getElementById('searchMode');
+        
+        function updateSearchPlaceholder() {
+            if (searchNotesEl && searchModeEl) {
+                const mode = searchModeEl.value;
+                searchNotesEl.placeholder = mode === 'title' ? 'Search note titles...' : 'Search all content...';
+            }
+        }
+        
+        if (searchNotesEl) {
+            searchNotesEl.addEventListener('input', function() {
+                // Reset voice search styling when user types manually
+                this.style.background = '';
+                voiceSearchTerm = '';
+                renderNotesList();
+            });
+        }
+        
+        if (searchModeEl) {
+            searchModeEl.addEventListener('change', function() {
+                updateSearchPlaceholder();
+                renderNotesList();
+            });
+        }
+        
+        // Set initial placeholder
+        updateSearchPlaceholder();
+        
+        console.log('Initialization complete');
+    } catch (e) {
+        console.error('Initialization failed:', e);
+    }
+});
+</script>
+<script>
+// Export dropdown logic
+function toggleExportDropdown() {
+    const dd = document.getElementById('exportDropdown');
+    if (dd.style.display === 'block') {
+        dd.style.display = 'none';
+    } else {
+        dd.style.display = 'block';
+        // Close if click outside
+        setTimeout(() => {
+            document.addEventListener('click', hideExportDropdownOnClick, { once: true });
+        }, 0);
+    }
+}
+function hideExportDropdown() {
+    const dd = document.getElementById('exportDropdown');
+    if (dd) dd.style.display = 'none';
+}
+function hideExportDropdownOnClick(e) {
+    const btn = document.getElementById('exportDropdownBtn');
+    const dd = document.getElementById('exportDropdown');
+    if (!btn.contains(e.target) && !dd.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+}
+</script>
+</body>
+</html>

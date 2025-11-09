@@ -27,6 +27,7 @@ def transcribe_vosk():
         return jsonify({'error': 'Audio must be WAV PCM 16kHz mono'}), 400
     from vosk import KaldiRecognizer
     rec = KaldiRecognizer(vosk_model, 16000)
+    words = []
     results = []
     while True:
         data = wf.readframes(4000)
@@ -34,11 +35,16 @@ def transcribe_vosk():
             break
         if rec.AcceptWaveform(data):
             part = json.loads(rec.Result())
+            if 'result' in part:
+                words.extend(part['result'])
             results.append(part.get('text', ''))
     final = json.loads(rec.FinalResult())
+    if 'result' in final:
+        words.extend(final['result'])
     results.append(final.get('text', ''))
     transcript = ' '.join([r for r in results if r])
-    return jsonify({'text': transcript})
+    # words: list of dicts with 'word' and 'conf' keys
+    return jsonify({'text': transcript, 'words': words})
 
 # --- Vosk Model Setup ---
 VOSK_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'vosk', 'vosk-model-small-en-us-0.15')
