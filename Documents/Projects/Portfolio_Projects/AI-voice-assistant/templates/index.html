@@ -127,8 +127,9 @@
                 <div style="display: flex; gap: 0.5em; margin-bottom: 0.7em; align-items: center;">
                     <input id="searchNotes" type="text" placeholder="Search notes..." style="flex: 1; padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" oninput="renderNotesList()" />
                     <select id="searchType" style="padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;background:white;" onchange="renderNotesList()">
-                        <option value="title">Title Only</option>
-                        <option value="both">Title + Content</option>
+                        <option value="both">All</option>
+                        <option value="title">Title</option>
+                        <option value="content">Content</option>
                     </select>
                 </div>
                 <input id="dateFilter" type="date" style="width:95%;margin-bottom:1em;padding:0.4em;border-radius:4px;border:1px solid #e0e0e0;font-size:1em;" onchange="renderNotesList()" />
@@ -416,7 +417,7 @@ function renderNotesList() {
 
     // Get search parameters
     let searchTerm = '';
-    let searchType = 'title'; // default
+    let searchType = 'both'; // default to 'All'
     if (searchEl && searchEl.value.trim()) {
         searchTerm = searchEl.value.toLowerCase().trim();
     }
@@ -438,23 +439,23 @@ function renderNotesList() {
     
     if (activeSearch) {
         // Use voice search term if no manual search
-        const term = searchTerm || voiceSearchTerm.toLowerCase();
-        
+        const term = searchTerm || (voiceSearchTerm && voiceSearchTerm.toLowerCase());
         // Sort: matches first, then non-matches
         displayNotes = [...notes].sort((a, b) => {
             let aMatch = false;
             let bMatch = false;
-            
             if (searchType === 'title') {
                 aMatch = a.title && a.title.toLowerCase().includes(term);
                 bMatch = b.title && b.title.toLowerCase().includes(term);
-            } else { // both title and content
+            } else if (searchType === 'content') {
+                aMatch = a.content && a.content.toLowerCase().includes(term);
+                bMatch = b.content && b.content.toLowerCase().includes(term);
+            } else { // both (All)
                 aMatch = (a.title && a.title.toLowerCase().includes(term)) || 
                         (a.content && a.content.toLowerCase().includes(term));
                 bMatch = (b.title && b.title.toLowerCase().includes(term)) || 
                         (b.content && b.content.toLowerCase().includes(term));
             }
-            
             if (aMatch === bMatch) return 0;
             return aMatch ? -1 : 1; // matches come first
         });
@@ -473,19 +474,19 @@ function renderNotesList() {
         // Find the real index in the full notes array for select/delete
         const realIdx = allNotes.findIndex(n => n.timestamp === note.timestamp && n.title === note.title);
         const li = document.createElement('li');
-        
         // Check if this note matches current search
         let isSearchMatch = false;
         if (activeSearch) {
-            const term = searchTerm || voiceSearchTerm.toLowerCase();
+            const term = searchTerm || (voiceSearchTerm && voiceSearchTerm.toLowerCase());
             if (searchType === 'title') {
                 isSearchMatch = note.title && note.title.toLowerCase().includes(term);
-            } else { // both title and content
+            } else if (searchType === 'content') {
+                isSearchMatch = note.content && note.content.toLowerCase().includes(term);
+            } else { // both (All)
                 isSearchMatch = (note.title && note.title.toLowerCase().includes(term)) || 
                               (note.content && note.content.toLowerCase().includes(term));
             }
         }
-        
         // Apply classes: selected + search-match highlighting
         let classes = 'note-list-item';
         if (realIdx === currentNoteIdx) classes += ' selected';
