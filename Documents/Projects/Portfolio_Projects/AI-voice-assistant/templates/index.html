@@ -137,7 +137,17 @@
                             <div id="quill-editor" style="min-height: 200px; background: white; border: 1px solid #e0e0e0; border-radius: 4px;">
                             </div>
                             <div style="margin: 0.5em 0 0.7em 0;">
-                                <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Rich text editing enabled - Use toolbar above for formatting</span>
+                                <span style="font-size:0.98em; color:#888; margin-right:0.7em;">Quick symbols:</span>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('.')">.</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(',')">,</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(':')">:</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(';')">;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('!')">!</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('?')">?</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('&quot;')">&quot;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('&#39;')">&#39;</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol('(')">(</button>
+                                <button type="button" class="symbol-btn" onclick="insertSymbol(')')">)</button>
                             </div>
                             <button onclick="saveNote()">Save Note Locally</button>
                             <div style="display:inline-block;position:relative;">
@@ -221,6 +231,33 @@ function appendTextToQuill(text) {
         const noteArea = document.getElementById('note');
         noteArea.value += (noteArea.value ? '\n' : '') + text;
     }
+}
+
+function insertSymbol(symbol) {
+    if (quill) {
+        // Insert symbol at current cursor position
+        const selection = quill.getSelection();
+        if (selection) {
+            quill.insertText(selection.index, symbol);
+            // Move cursor after the inserted symbol
+            quill.setSelection(selection.index + symbol.length);
+        } else {
+            // If no selection, insert at end
+            const length = quill.getLength();
+            quill.insertText(length - 1, symbol);
+        }
+        quill.focus(); // Keep focus on editor
+    } else {
+        // Fallback for textarea
+        const noteArea = document.getElementById('note');
+        const cursorPos = noteArea.selectionStart;
+        const textBefore = noteArea.value.substring(0, cursorPos);
+        const textAfter = noteArea.value.substring(noteArea.selectionEnd);
+        noteArea.value = textBefore + symbol + textAfter;
+        noteArea.selectionStart = noteArea.selectionEnd = cursorPos + symbol.length;
+        noteArea.focus();
+    }
+    autoSaveNote();
 }
 
 // Export as PDF using html2pdf.js
