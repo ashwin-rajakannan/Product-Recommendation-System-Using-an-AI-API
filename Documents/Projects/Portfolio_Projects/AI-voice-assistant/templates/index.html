@@ -1284,12 +1284,13 @@ function startLiveTranscribe() {
             console.log('Result', i, '- Final:', event.results[i].isFinal, 'Text:', transcript);
             
             if (event.results[i].isFinal) {
-                // Add to note area immediately
-                const currentValue = noteArea.value;
-                const newValue = currentValue + (currentValue && !currentValue.endsWith(' ') ? ' ' : '') + transcript + ' ';
-                noteArea.value = newValue;
-                console.log('Added to note:', transcript);
-                autoSaveNote();
+                // Add to note area using Quill-compatible function
+                const trimmedTranscript = transcript.trim();
+                if (trimmedTranscript) {
+                    appendTextToQuill(trimmedTranscript);
+                    console.log('Added to note via Quill:', trimmedTranscript);
+                    autoSaveNote();
+                }
                 status.textContent = 'Listening...';
             } else {
                 interimTranscript += transcript;
